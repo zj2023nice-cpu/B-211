@@ -11,6 +11,8 @@
                 <el-radio-button label="table"><el-icon><finished /></el-icon> 列表</el-radio-button>
                 <el-radio-button label="card"><el-icon><grid /></el-icon> 卡片</el-radio-button>
              </el-radio-group>
+             <el-button @click="handleDownloadTemplate" :icon="Download" style="margin-right: 10px">下载模板</el-button>
+             <el-button type="success" @click="handleImport" :icon="Upload" style="margin-right: 10px">批量导入</el-button>
              <el-button type="primary" @click="handleAdd" :icon="Plus">新增用户</el-button>
           </div>
         </div>
@@ -118,6 +120,64 @@
         </span>
       </template>
     </el-dialog>
+
+    <el-dialog v-model="importDialogVisible" title="批量导入用户" width="600px">
+      <el-alert
+        title="请下载模板并按照格式填写后上传，默认密码为 123456"
+        type="info"
+        :closable="false"
+        style="margin-bottom: 20px"
+      />
+      <el-upload
+        ref="uploadRef"
+        class="upload-demo"
+        drag
+        :auto-upload="false"
+        :limit="1"
+        accept=".csv"
+        :on-exceed="handleExceed"
+        :on-change="handleFileChange"
+      >
+        <el-icon class="el-icon--upload"><upload-filled /></el-icon>
+        <div class="el-upload__text">
+          将文件拖到此处，或 <em>点击上传</em>
+        </div>
+        <template #tip>
+          <div class="el-upload__tip">
+            仅支持 CSV 格式文件，角色可选值：ADMIN、TEACHER、HEAD_TEACHER、STUDENT
+          </div>
+        </template>
+      </el-upload>
+
+      <div v-if="importResult" class="import-result">
+        <el-divider>导入结果</el-divider>
+        <el-descriptions :column="3" border>
+          <el-descriptions-item label="总数">{{ importResult.total }}</el-descriptions-item>
+          <el-descriptions-item label="成功">
+            <span style="color: #67c23a">{{ importResult.successCount }}</span>
+          </el-descriptions-item>
+          <el-descriptions-item label="失败">
+            <span style="color: #f56c6c">{{ importResult.failCount }}</span>
+          </el-descriptions-item>
+        </el-descriptions>
+
+        <div v-if="importResult.errors && importResult.errors.length > 0" style="margin-top: 20px">
+          <el-table :data="importResult.errors" border stripe size="small">
+            <el-table-column prop="rowNumber" label="行号" width="80" align="center" />
+            <el-table-column prop="username" label="用户名" width="150" />
+            <el-table-column prop="name" label="姓名" width="120" />
+            <el-table-column prop="errorMessage" label="错误信息" />
+          </el-table>
+        </div>
+      </div>
+
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="importDialogVisible = false">关闭</el-button>
+          <el-button type="primary" :loading="importing" @click="handleImportSubmit">开始导入</el-button>
+        </span>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -125,7 +185,7 @@
 import { ref, onMounted, reactive, computed } from 'vue'
 import request from '@/utils/request'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { User, Plus, Edit, Delete, School, Phone, Finished, Grid } from '@element-plus/icons-vue'
+import { User, Plus, Edit, Delete, School, Phone, Finished, Grid, Upload, Download, UploadFilled } from '@element-plus/icons-vue'
 
 const loading = ref(false)
 const tableData = ref([])
@@ -153,6 +213,12 @@ const form = reactive({
   className: '',
   contact: ''
 })
+
+const importDialogVisible = ref(false)
+const importing = ref(false)
+const uploadRef = ref(null)
+const selectedFile = ref(null)
+const importResult = ref(null)
 
 const getRoleName = (role) => {
     const map = { 'ADMIN': '管理员', 'TEACHER': '教师', 'HEAD_TEACHER': '班主任', 'STUDENT': '学生' }
@@ -255,6 +321,55 @@ const handleSubmit = async () => {
   }
 }
 
+const handleDownloadTemplate = () => {
+  window.open('/api/users/template', '_blank')
+}
+
+const handleImport = () => {
+  importDialogVisible.value = true
+  selectedFile.value = null
+  importResult.value = null
+  if (uploadRef.value) {
+    uploadRef.value.clearFiles()
+  }
+}
+
+const handleExceed = () => {
+  ElMessage.warning('只能上传一个文件')
+}
+
+const handleFileChange = (file) => {
+  selectedFile.value = file.raw
+}
+
+const handleImportSubmit = async () => {
+  if (!selectedFile.value) {
+    ElMessage.warning('请选择要上传的文件')
+    return
+  }
+
+  importing.value = true
+  try {
+    const formData = new FormData()
+    formData.append('file', selectedFile.value)
+
+    const result = await request.post('/users/import', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    })
+
+    importResult.value = result
+    fetchData()
+  } catch (error) {
+    if (error.responseData) {
+      importResult.value = error.responseData.data
+    }
+  } finally {
+    importing.value = false
+  }
+}
+
 onMounted(() => {
   fetchData()
 })
@@ -345,5 +460,13 @@ onMounted(() => {
     margin-top: 20px;
     display: flex;
     justify-content: flex-end;
+}
+
+.import-result {
+    margin-top: 20px;
+}
+
+.upload-demo {
+    margin-bottom: 20px;
 }
 </style>

@@ -3,11 +3,18 @@ package com.grade.system.controller;
 import com.grade.system.annotation.AuditLog;
 import com.grade.system.dto.ApiResponse;
 import com.grade.system.dto.PageResponse;
+import com.grade.system.dto.UserImportResult;
 import com.grade.system.entity.User;
 import com.grade.system.service.UserService;
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
+import java.io.OutputStreamWriter;
+import java.io.PrintWriter;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 @RestController
@@ -54,5 +61,43 @@ public class UserController {
     public ApiResponse<User> getUser(@PathVariable Long id) {
         User user = userService.getUser(id);
         return ApiResponse.success(user);
+    }
+
+    @AuditLog(module = "用户管理", action = "导入", description = "批量导入用户")
+    @PostMapping("/import")
+    public ApiResponse<UserImportResult> importUsers(@RequestParam("file") MultipartFile file) {
+        if (file.isEmpty()) {
+            return ApiResponse.error("请选择要上传的文件");
+        }
+
+        String originalFilename = file.getOriginalFilename();
+        if (originalFilename == null || !originalFilename.toLowerCase().endsWith(".csv")) {
+            return ApiResponse.error("只支持CSV格式的文件");
+        }
+
+        try {
+            UserImportResult result = userService.importUsersFromCsv(file);
+            if (result.getFailCount() > 0) {
+                return ApiResponse.success("导入完成，成功 " + result.getSuccessCount() + " 条，失败 " + result.getFailCount() + " 条", result);
+            }
+            return ApiResponse.success("成功导入 " + result.getSuccessCount() + " 条用户记录", result);
+        } catch (Exception e) {
+            return ApiResponse.error("导入失败：" + e.getMessage());
+        }
+    }
+
+    @GetMapping("/template")
+    public void downloadTemplate(HttpServletResponse response) throws IOException {
+        response.setContentType("text/csv;charset=UTF-8");
+        response.setCharacterEncoding("UTF-8");
+        response.setHeader("Content-Disposition", "attachment; filename=user_import_template.csv");
+
+        PrintWriter writer = new PrintWriter(new OutputStreamWriter(response.getOutputStream(), StandardCharsets.UTF_8));
+        writer.println('\uFEFF' + "用户名,姓名,角色,班级,联系方式");
+        writer.println("zhangsan,张三,STUDENT,计算机2023-1班,13800138000");
+        writer.println("lisi,李四,TEACHER,,lisi@school.edu");
+        writer.println("wangwu,王五,HEAD_TEACHER,计算机2023-2班,13900139000");
+        writer.flush();
+        writer.close();
     }
 }
