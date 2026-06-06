@@ -344,12 +344,24 @@ public class GradeService {
             String term,
             Long courseId,
             String className,
+            Long teacherId,
             int page,
             int size) {
 
         List<GradeWarningDTO> allWarnings = new ArrayList<>();
 
-        List<Grade> allGrades = gradeRepository.findAll();
+        List<Grade> allGrades;
+        if (teacherId != null) {
+            List<Course> teacherCourses = courseRepository.findByTeacherId(teacherId);
+            List<Long> teacherCourseIds = teacherCourses.stream().map(Course::getId).collect(Collectors.toList());
+            if (teacherCourseIds.isEmpty()) {
+                allGrades = new ArrayList<>();
+            } else {
+                allGrades = gradeRepository.findByCourseIdIn(teacherCourseIds);
+            }
+        } else {
+            allGrades = gradeRepository.findAll();
+        }
 
         for (Grade grade : allGrades) {
             if (term != null && !term.isEmpty() && !term.equals(grade.getTerm())) {

@@ -20,10 +20,11 @@ public class GradeWarningController {
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(required = false) String term,
             @RequestParam(required = false) Long courseId,
-            @RequestParam(required = false) String className) {
+            @RequestParam(required = false) String className,
+            @RequestParam(required = false) Long teacherId) {
 
         PageResponse<GradeWarningDTO> warningPage = gradeService.getGradeWarnings(
-                term, courseId, className, page, size);
+                term, courseId, className, teacherId, page, size);
         return ApiResponse.success(warningPage);
     }
 }

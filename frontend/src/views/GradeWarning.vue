@@ -16,7 +16,7 @@
             <el-select v-model="filterCourse" placeholder="筛选课程" clearable style="width: 140px; margin-right: 10px">
               <el-option v-for="course in courses" :key="course.id" :label="course.name" :value="course.id" />
             </el-select>
-            <el-select v-model="filterClass" placeholder="筛选班级" clearable style="width: 140px; margin-right: 10px">
+            <el-select v-model="filterClass" placeholder="筛选班级" clearable style="width: 140px; margin-right: 10px" :disabled="isHeadTeacher">
               <el-option v-for="cls in classOptions" :key="cls" :label="cls" :value="cls" />
             </el-select>
             <el-button type="primary" @click="fetchData">查询</el-button>
@@ -75,6 +75,7 @@ const loading = ref(false)
 const tableData = ref([])
 const courses = ref([])
 const allGrades = ref([])
+const students = ref([])
 
 const filterTerm = ref('')
 const filterCourse = ref('')
@@ -95,16 +96,30 @@ const currentPageForDisplay = computed({
   }
 })
 
+const isHeadTeacher = computed(() => {
+  return userStore.role === 'HEAD_TEACHER'
+})
+
 const termOptions = computed(() => {
   return [...new Set(allGrades.value.map(item => item.term))].sort()
 })
 
 const classOptions = computed(() => {
-  const classes = [...new Set(allGrades.value.map(item => {
-    const studentName = item.studentId || item.studentName
-    return item.className || ''
-  }))].filter(c => c)
-  return classes.sort()
+  const classSet = new Set()
+  
+  students.value.forEach(student => {
+    if (student.className) {
+      classSet.add(student.className)
+    }
+  })
+  
+  tableData.value.forEach(item => {
+    if (item.className) {
+      classSet.add(item.className)
+    }
+  })
+  
+  return [...classSet].sort()
 })
 
 const handlePageChange = (val) => {
@@ -167,12 +182,29 @@ const fetchData = async () => {
       params.className = filterClass.value
     }
 
-    const [coursesRes, gradesRes] = await Promise.all([
+    if (userStore.role === 'TEACHER' && userStore.user?.id) {
+      params.teacherId = userStore.user.id
+    }
+    if (userStore.role === 'HEAD_TEACHER' && userStore.user?.className) {
+      params.className = userStore.user.className
+    }
+
+    const [coursesRes, usersRes, gradesRes] = await Promise.all([
       request.get('/courses'),
+      request.get('/users'),
       request.get('/grade-warnings', { params })
     ])
 
     courses.value = coursesRes
+    students.value = usersRes.filter(u => u.role === 'STUDENT')
+
+    if (['TEACHER', 'HEAD_TEACHER'].includes(userStore.role)) {
+      courses.value = coursesRes.filter(c => c.teacherId === userStore.user.id)
+    }
+
+    if (userStore.role === 'HEAD_TEACHER' && userStore.user.className) {
+      students.value = students.value.filter(s => s.className === userStore.user.className)
+    }
 
     if (gradesRes && gradesRes.content !== undefined) {
       tableData.value = gradesRes.content
@@ -207,7 +239,9 @@ const calculateStats = () => {
 const resetFilters = () => {
   filterTerm.value = ''
   filterCourse.value = ''
-  filterClass.value = ''
+  if (!isHeadTeacher.value) {
+    filterClass.value = ''
+  }
   currentPage.value = 0
   fetchData()
 }
@@ -226,6 +260,9 @@ const fetchAllGradesForOptions = async () => {
 }
 
 onMounted(() => {
+  if (isHeadTeacher.value && userStore.user?.className) {
+    filterClass.value = userStore.user.className
+  }
   fetchAllGradesForOptions()
   fetchData()
 })
