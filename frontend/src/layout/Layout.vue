@@ -48,6 +48,11 @@
           <el-icon><DataLine /></el-icon>
           <template #title>成绩查询</template>
         </el-menu-item>
+
+        <el-menu-item index="/grade-warnings" v-if="['ADMIN', 'TEACHER', 'HEAD_TEACHER'].includes(userStore.role)">
+          <el-icon><Warning /></el-icon>
+          <template #title>成绩预警</template>
+        </el-menu-item>
       </el-menu>
     </el-aside>
     
@@ -97,7 +102,7 @@
 import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
-import { Expand, Fold, School, Odometer, Setting, User, Reading, Edit, DataLine, ArrowDown, Document } from '@element-plus/icons-vue'
+import { Expand, Fold, School, Odometer, Setting, User, Reading, Edit, DataLine, ArrowDown, Document, Warning } from '@element-plus/icons-vue'
 
 const route = useRoute()
 const router = useRouter()

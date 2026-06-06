@@ -1,6 +1,7 @@
 package com.grade.system.service;
 
 import com.grade.system.dto.GradeImportResult;
+import com.grade.system.dto.GradeWarningDTO;
 import com.grade.system.dto.PageResponse;
 import com.grade.system.entity.Course;
 import com.grade.system.entity.Grade;
@@ -337,5 +338,97 @@ public class GradeService {
         }
         
         return result;
+    }
+
+    public PageResponse<GradeWarningDTO> getGradeWarnings(
+            String term,
+            Long courseId,
+            String className,
+            int page,
+            int size) {
+
+        List<GradeWarningDTO> allWarnings = new ArrayList<>();
+
+        List<Grade> allGrades = gradeRepository.findAll();
+
+        for (Grade grade : allGrades) {
+            if (term != null && !term.isEmpty() && !term.equals(grade.getTerm())) {
+                continue;
+            }
+            if (courseId != null && !courseId.equals(grade.getCourseId())) {
+                continue;
+            }
+
+            User student = userRepository.findById(grade.getStudentId()).orElse(null);
+            if (student == null) {
+                continue;
+            }
+
+            if (className != null && !className.isEmpty() && !className.equals(student.getClassName())) {
+                continue;
+            }
+
+            Course course = courseRepository.findById(grade.getCourseId()).orElse(null);
+            if (course == null) {
+                continue;
+            }
+
+            String warningLevel = getWarningLevel(grade.getScore(), grade.getMakeupScore());
+            if (warningLevel != null) {
+                GradeWarningDTO dto = new GradeWarningDTO();
+                dto.setStudentName(student.getName());
+                dto.setClassName(student.getClassName());
+                dto.setCourseName(course.getName());
+                dto.setScore(grade.getScore());
+                dto.setMakeupScore(grade.getMakeupScore());
+                dto.setTerm(grade.getTerm());
+                dto.setWarningLevel(warningLevel);
+                allWarnings.add(dto);
+            }
+        }
+
+        allWarnings.sort(Comparator.comparing(GradeWarningDTO::getWarningLevel)
+                .thenComparing(GradeWarningDTO::getScore, Comparator.nullsLast(Comparator.naturalOrder())));
+
+        return createWarningPageResponse(allWarnings, page, size);
+    }
+
+    private String getWarningLevel(Double score, Double makeupScore) {
+        if (score == null) {
+            return null;
+        }
+
+        if (score < 60) {
+            if (makeupScore != null && makeupScore >= 60) {
+                return "MAKEUP_PASS";
+            }
+            return "FAIL";
+        }
+
+        if (score >= 60 && score < 70) {
+            return "BORDERLINE";
+        }
+
+        return null;
+    }
+
+    private PageResponse<GradeWarningDTO> createWarningPageResponse(List<GradeWarningDTO> allItems, int page, int size) {
+        int totalElements = allItems.size();
+        int totalPages = (int) Math.ceil((double) totalElements / size);
+
+        int start = page * size;
+        int end = Math.min(start + size, totalElements);
+
+        List<GradeWarningDTO> content = start < totalElements ? allItems.subList(start, end) : new ArrayList<>();
+
+        PageResponse<GradeWarningDTO> response = new PageResponse<>();
+        response.setContent(content);
+        response.setPageNumber(page);
+        response.setPageSize(size);
+        response.setTotalElements(totalElements);
+        response.setTotalPages(totalPages);
+        response.setFirst(page == 0);
+        response.setLast(page >= totalPages - 1);
+        return response;
     }
 }

@@ -53,6 +53,12 @@ const router = createRouter({
           meta: { title: '成绩查询' }
         },
         {
+          path: 'grade-warnings',
+          name: 'GradeWarning',
+          component: () => import('../views/GradeWarning.vue'),
+          meta: { title: '成绩预警', roles: ['ADMIN', 'TEACHER', 'HEAD_TEACHER'] }
+        },
+        {
           path: 'profile',
           name: 'Profile',
           component: () => import('../views/Profile.vue'),
