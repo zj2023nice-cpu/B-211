@@ -119,8 +119,8 @@
         <el-form-item label="用户名" prop="username">
           <el-input v-model="form.username" :disabled="!!form.id" placeholder="请输入用户名" />
         </el-form-item>
-        <el-form-item label="密码" prop="password">
-            <el-input v-model="form.password" placeholder="留空则不修改(新增时默认为123456)" show-password />
+        <el-form-item label="密码" prop="password" v-if="!isEditMode">
+            <el-input v-model="form.password" placeholder="留空则默认为123456" show-password />
         </el-form-item>
         <el-form-item label="角色" prop="role">
           <el-radio-group v-model="form.role" size="default" @change="handleRoleChange">
@@ -302,6 +302,8 @@ const form = reactive({
   contact: ''
 })
 
+const isEditMode = computed(() => !!form.id)
+
 const importDialogVisible = ref(false)
 const importing = ref(false)
 const uploadRef = ref(null)
@@ -414,7 +416,15 @@ const handleAdd = () => {
 
 const handleEdit = (row) => {
   dialogTitle.value = '编辑用户'
-  Object.assign(form, { ...row, password: '' })
+  Object.assign(form, {
+    id: row.id,
+    username: row.username,
+    password: '',
+    role: row.role,
+    name: row.name,
+    className: row.className || '',
+    contact: row.contact || ''
+  })
   if (formRef.value) {
     nextTick(() => {
       formRef.value.clearValidate()
@@ -465,7 +475,12 @@ const handleSubmit = async () => {
     if (valid) {
       try {
         if (form.id) {
-          await request.put(`/users/${form.id}`, form)
+          await request.put(`/users/${form.id}`, {
+            name: form.name,
+            role: form.role,
+            className: form.className,
+            contact: form.contact
+          })
           ElMessage.success('修改成功')
         } else {
           await request.post('/users', form)

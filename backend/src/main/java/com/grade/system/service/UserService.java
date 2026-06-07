@@ -108,19 +108,32 @@ public class UserService {
         return userRepository.save(user);
     }
     
-    public User updateUser(Long id, User userDetails) {
-        User user = userRepository.findById(id).orElseThrow(() -> 
+    public User updateUserProfile(Long id, String name, String contact) {
+        User user = userRepository.findById(id).orElseThrow(() ->
             new ResourceNotFoundException(ErrorCode.USER_NOT_FOUND));
-        if (userDetails.getName() != null) user.setName(userDetails.getName());
-        if (userDetails.getContact() != null) user.setContact(userDetails.getContact());
-        if (userDetails.getPassword() != null && !userDetails.getPassword().isEmpty()) {
-            user.setPassword(passwordEncoder.encode(userDetails.getPassword()));
+        if (name != null) {
+            user.setName(name);
         }
-        if (userDetails.getClassName() != null) {
-            user.setClassName(userDetails.getClassName());
+        if (contact != null) {
+            user.setContact(contact);
         }
-        if (userDetails.getRole() != null) {
-            user.setRole(userDetails.getRole());
+        return userRepository.save(user);
+    }
+
+    public User updateUserByAdmin(Long id, String name, String contact, String role, String className) {
+        User user = userRepository.findById(id).orElseThrow(() ->
+            new ResourceNotFoundException(ErrorCode.USER_NOT_FOUND));
+        if (name != null) {
+            user.setName(name);
+        }
+        if (contact != null) {
+            user.setContact(contact);
+        }
+        if (className != null) {
+            user.setClassName(className);
+        }
+        if (role != null) {
+            user.setRole(role);
         }
         return userRepository.save(user);
     }

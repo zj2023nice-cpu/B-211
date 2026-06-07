@@ -21,9 +21,18 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class UserServiceTest {
@@ -49,6 +58,7 @@ class UserServiceTest {
         testStudent.setRole("STUDENT");
         testStudent.setName("张三");
         testStudent.setClassName("计算机1班");
+        testStudent.setContact("13800138000");
 
         testTeacher = new User();
         testTeacher.setId(2L);
@@ -200,45 +210,111 @@ class UserServiceTest {
     }
 
     @Test
-    @DisplayName("测试更新用户 - 成功")
-    void testUpdateUser_Success() {
-        User updatedUser = new User();
-        updatedUser.setName("张三更新");
-        updatedUser.setContact("13800138000");
-        updatedUser.setPassword("newpassword");
-        updatedUser.setClassName("计算机2班");
-        updatedUser.setRole("TEACHER");
-
+    @DisplayName("测试本人更新资料 - 只修改姓名和联系方式")
+    void testUpdateUserProfile_Success() {
         when(userRepository.findById(1L)).thenReturn(Optional.of(testStudent));
-        when(passwordEncoder.encode("newpassword")).thenReturn("$2a$10$newEncodedPassword");
         when(userRepository.save(any(User.class))).thenReturn(testStudent);
 
-        User result = userService.updateUser(1L, updatedUser);
+        User result = userService.updateUserProfile(1L, "张三更新", "13900139000");
 
         assertNotNull(result);
         assertEquals("张三更新", result.getName());
-        assertEquals("13800138000", result.getContact());
-        assertEquals("计算机2班", result.getClassName());
-        assertEquals("TEACHER", result.getRole());
+        assertEquals("13900139000", result.getContact());
+        assertEquals("STUDENT", result.getRole());
+        assertEquals("计算机1班", result.getClassName());
+        assertEquals("123456", result.getPassword());
         verify(userRepository, times(1)).findById(1L);
-        verify(passwordEncoder, times(1)).encode("newpassword");
         verify(userRepository, times(1)).save(any(User.class));
+        verify(passwordEncoder, never()).encode(any());
     }
 
     @Test
-    @DisplayName("测试更新用户 - 未找到")
-    void testUpdateUser_NotFound() {
-        User updatedUser = new User();
-        updatedUser.setName("张三更新");
+    @DisplayName("测试管理员更新用户资料")
+    void testUpdateUserByAdmin_Success() {
+        when(userRepository.findById(1L)).thenReturn(Optional.of(testStudent));
+        when(userRepository.save(any(User.class))).thenReturn(testStudent);
 
+        User result = userService.updateUserByAdmin(1L, "张三更新", "13900139000", "HEAD_TEACHER", "计算机2班");
+
+        assertNotNull(result);
+        assertEquals("张三更新", result.getName());
+        assertEquals("13900139000", result.getContact());
+        assertEquals("HEAD_TEACHER", result.getRole());
+        assertEquals("计算机2班", result.getClassName());
+        assertEquals("123456", result.getPassword());
+        verify(userRepository, times(1)).findById(1L);
+        verify(userRepository, times(1)).save(any(User.class));
+        verify(passwordEncoder, never()).encode(any());
+    }
+
+    @Test
+    @DisplayName("测试更新用户资料 - 未找到")
+    void testUpdateUserProfile_NotFound() {
         when(userRepository.findById(1L)).thenReturn(Optional.empty());
 
-        RuntimeException exception = assertThrows(RuntimeException.class, () -> {
-            userService.updateUser(1L, updatedUser);
-        });
+        RuntimeException exception = assertThrows(RuntimeException.class, () ->
+                userService.updateUserProfile(1L, "张三更新", null));
 
         assertEquals("用户不存在", exception.getMessage());
         verify(userRepository, times(1)).findById(1L);
+        verify(userRepository, never()).save(any(User.class));
+    }
+
+    @Test
+    @DisplayName("测试重置密码 - 自定义新密码")
+    void testResetPassword_WithNewPassword() {
+        when(userRepository.findById(1L)).thenReturn(Optional.of(testStudent));
+        when(passwordEncoder.encode("newpass123")).thenReturn("$2a$10$newEncodedPassword");
+
+        userService.resetPassword(1L, "newpass123");
+
+        assertEquals("$2a$10$newEncodedPassword", testStudent.getPassword());
+        verify(passwordEncoder, times(1)).encode("newpass123");
+        verify(userRepository, times(1)).save(testStudent);
+    }
+
+    @Test
+    @DisplayName("测试重置密码 - 默认密码")
+    void testResetPassword_DefaultPassword() {
+        when(userRepository.findById(1L)).thenReturn(Optional.of(testStudent));
+        when(passwordEncoder.encode("123456")).thenReturn("$2a$10$defaultEncodedPassword");
+
+        userService.resetPassword(1L, null);
+
+        assertEquals("$2a$10$defaultEncodedPassword", testStudent.getPassword());
+        verify(passwordEncoder, times(1)).encode("123456");
+        verify(userRepository, times(1)).save(testStudent);
+    }
+
+    @Test
+    @DisplayName("测试修改密码 - 旧密码正确")
+    void testChangePassword_Success() {
+        testTeacher.setPassword("$2a$10$hashedPassword");
+        when(userRepository.findById(2L)).thenReturn(Optional.of(testTeacher));
+        when(passwordEncoder.matches("oldpass", "$2a$10$hashedPassword")).thenReturn(true);
+        when(passwordEncoder.encode("newpass123")).thenReturn("$2a$10$newEncodedPassword");
+
+        boolean result = userService.changePassword(2L, "oldpass", "newpass123");
+
+        assertTrue(result);
+        assertEquals("$2a$10$newEncodedPassword", testTeacher.getPassword());
+        verify(passwordEncoder, times(1)).matches("oldpass", "$2a$10$hashedPassword");
+        verify(passwordEncoder, times(1)).encode("newpass123");
+        verify(userRepository, times(1)).save(testTeacher);
+    }
+
+    @Test
+    @DisplayName("测试修改密码 - 旧密码错误")
+    void testChangePassword_WrongOldPassword() {
+        testTeacher.setPassword("$2a$10$hashedPassword");
+        when(userRepository.findById(2L)).thenReturn(Optional.of(testTeacher));
+        when(passwordEncoder.matches("wrongpass", "$2a$10$hashedPassword")).thenReturn(false);
+
+        boolean result = userService.changePassword(2L, "wrongpass", "newpass123");
+
+        assertFalse(result);
+        verify(passwordEncoder, times(1)).matches("wrongpass", "$2a$10$hashedPassword");
+        verify(passwordEncoder, never()).encode(any());
         verify(userRepository, never()).save(any(User.class));
     }
 
@@ -270,9 +346,7 @@ class UserServiceTest {
     void testGetUser_NotFound() {
         when(userRepository.findById(1L)).thenReturn(Optional.empty());
 
-        RuntimeException exception = assertThrows(RuntimeException.class, () -> {
-            userService.getUser(1L);
-        });
+        RuntimeException exception = assertThrows(RuntimeException.class, () -> userService.getUser(1L));
 
         assertEquals("用户不存在", exception.getMessage());
         verify(userRepository, times(1)).findById(1L);

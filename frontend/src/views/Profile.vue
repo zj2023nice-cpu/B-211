@@ -152,6 +152,8 @@ const handleInfoSubmit = async () => {
           name: res.name,
           contact: res.contact
         })
+        infoForm.name = res.name || ''
+        infoForm.contact = res.contact || ''
         ElMessage.success('基本资料修改成功')
       } finally {
         loading.value = false
