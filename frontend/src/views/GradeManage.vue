@@ -13,7 +13,10 @@
                 inactive-text="普通模式"
                 style="margin-right: 20px"
              />
-             <el-button v-if="isBatchMode" type="success" @click="handleBatchSave" :loading="batchSaving">保存全部变更</el-button>
+             <el-button v-if="isBatchMode" type="success" @click="handleBatchSave" :loading="batchSaving">
+               保存全部变更
+               <el-badge v-if="modifiedRows.size > 0" :value="modifiedRows.size" :max="99" class="save-badge" />
+             </el-button>
              <div v-else style="display: inline-block">
                 <el-select v-model="filterTerm" placeholder="筛选学期" clearable style="width: 120px; margin-right: 10px">
                     <el-option v-for="term in filterTermOptions" :key="term" :label="term" :value="term" />
@@ -207,7 +210,8 @@
 </template>
 
 <script setup>
-import { ref, onMounted, reactive, computed, watch } from 'vue'
+import { ref, onMounted, reactive, computed, watch, nextTick } from 'vue'
+import { onBeforeRouteLeave } from 'vue-router'
 import request from '@/utils/request'
 import { useUserStore } from '@/stores/user'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -276,15 +280,47 @@ const dialogTermOptions = computed(() => {
     return options
 })
 
-const handlePageChange = (val) => {
-  currentPage.value = val - 1
-  fetchData()
+const confirmUnsavedChanges = async () => {
+    if (!isBatchMode.value || modifiedRows.value.size === 0) {
+        return true
+    }
+    try {
+        await ElMessageBox.confirm(
+            `当前有 ${modifiedRows.value.size} 条修改未保存，确定要离开吗？未保存的修改将会丢失。`,
+            '未保存变更提醒',
+            {
+                confirmButtonText: '确定离开',
+                cancelButtonText: '取消',
+                type: 'warning',
+                distinguishCancelAndClose: true
+            }
+        )
+        return true
+    } catch {
+        return false
+    }
 }
 
-const handleSizeChange = (val) => {
-  pageSize.value = val
-  currentPage.value = 0
-  fetchData()
+const handlePageChange = async (val) => {
+    const confirmed = await confirmUnsavedChanges()
+    if (!confirmed) {
+        nextTick(() => {
+            currentPageForDisplay.value = currentPage.value + 1
+        })
+        return
+    }
+    modifiedRows.value.clear()
+    currentPage.value = val - 1
+    fetchData()
+}
+
+const handleSizeChange = async (val) => {
+    const confirmed = await confirmUnsavedChanges()
+    if (!confirmed) return
+    modifiedRows.value.clear()
+    pageSize.value = val
+    currentPage.value = 0
+    fetchData()
 }
 
 const isValidScore = (score) => {
@@ -295,7 +331,12 @@ const handleScoreChange = (row) => {
     modifiedRows.value.add(row.id)
 }
 
-const tableRowClassName = () => ''
+const tableRowClassName = ({ row }) => {
+    if (isBatchMode.value && modifiedRows.value.has(row.id)) {
+        return 'row-modified'
+    }
+    return ''
+}
 
 const handleBatchSave = async () => {
     if (modifiedRows.value.size === 0) {
@@ -501,12 +542,23 @@ const getScoreClass = (score) => {
     return ''
 }
 
-watch([filterTerm, filterCourse, filterStudent], () => {
+let filterWatchInitialized = false
+watch([filterTerm, filterCourse, filterStudent], async () => {
+    if (!filterWatchInitialized) {
+        filterWatchInitialized = true
+        return
+    }
+    const confirmed = await confirmUnsavedChanges()
+    if (!confirmed) return
+    modifiedRows.value.clear()
     currentPage.value = 0
     fetchData()
 })
 
-const handleImportClick = () => {
+const handleImportClick = async () => {
+    const confirmed = await confirmUnsavedChanges()
+    if (!confirmed) return
+    modifiedRows.value.clear()
     importDialogVisible.value = true
     importResult.value = null
     selectedFile.value = null
@@ -514,6 +566,19 @@ const handleImportClick = () => {
         uploadRef.value.clearFiles()
     }
 }
+
+watch(isBatchMode, async (newVal, oldVal) => {
+    if (oldVal === true && newVal === false && modifiedRows.value.size > 0) {
+        const confirmed = await confirmUnsavedChanges()
+        if (!confirmed) {
+            nextTick(() => {
+                isBatchMode.value = true
+            })
+            return
+        }
+        modifiedRows.value.clear()
+    }
+})
 
 const handleFileChange = (file) => {
     const isCSV = file.raw.type === 'text/csv' || file.raw.name.endsWith('.csv')
@@ -601,6 +666,16 @@ const downloadTemplate = () => {
     ElMessage.success('模板下载成功，请按照模板格式填写数据')
 }
 
+onBeforeRouteLeave(async (to, from, next) => {
+    const confirmed = await confirmUnsavedChanges()
+    if (confirmed) {
+        modifiedRows.value.clear()
+        next()
+    } else {
+        next(false)
+    }
+})
+
 onMounted(() => {
   fetchData()
 })
@@ -658,6 +733,36 @@ onMounted(() => {
 
 :deep(.is-error .el-input__wrapper) {
     box-shadow: 0 0 0 1px #EF4444 inset;
+}
+
+:deep(.el-table .row-modified) {
+    background-color: #fef3c7 !important;
+}
+
+:deep(.el-table .row-modified:hover > td) {
+    background-color: #fde68a !important;
+}
+
+:deep(.el-table .row-modified td:first-child .cell) {
+    position: relative;
+    padding-left: 20px;
+}
+
+:deep(.el-table .row-modified td:first-child .cell::before) {
+    content: '';
+    position: absolute;
+    left: 6px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: #f59e0b;
+    box-shadow: 0 0 4px rgba(245, 158, 11, 0.6);
+}
+
+.save-badge {
+    margin-left: 6px;
 }
 
 .pagination-container {
