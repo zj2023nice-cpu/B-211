@@ -449,6 +449,31 @@ public class GradeService {
         return gradeRepository.findDistinctTerms();
     }
 
+    public List<String> getRankingClasses() {
+        List<User> students = userRepository.findByRole("STUDENT");
+        List<Long> studentIds = students.stream()
+                .map(User::getId)
+                .collect(Collectors.toList());
+
+        if (studentIds.isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        List<Grade> grades = gradeRepository.findByStudentIdIn(studentIds);
+        List<Long> studentsWithGrades = grades.stream()
+                .map(Grade::getStudentId)
+                .distinct()
+                .collect(Collectors.toList());
+
+        return students.stream()
+                .filter(s -> studentsWithGrades.contains(s.getId()))
+                .map(User::getClassName)
+                .filter(className -> className != null && !className.isEmpty())
+                .distinct()
+                .sorted()
+                .collect(Collectors.toList());
+    }
+
     public List<ClassRankingDTO> getClassRanking(String term, String className) {
         List<Grade> grades;
         if (term != null && !term.isEmpty()) {

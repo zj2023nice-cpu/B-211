@@ -124,9 +124,8 @@ const fetchTerms = async () => {
 
 const fetchClasses = async () => {
   try {
-    const users = await request.get('/users')
-    const classes = [...new Set(users.filter(u => u.className).map(u => u.className))]
-    classOptions.value = classes
+    const res = await request.get('/grades/ranking/classes')
+    classOptions.value = res
   } catch (e) {
     console.error('获取班级列表失败', e)
   }

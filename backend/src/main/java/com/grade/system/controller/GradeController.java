@@ -136,6 +136,12 @@ public class GradeController {
         return ApiResponse.success(terms);
     }
 
+    @GetMapping("/ranking/classes")
+    public ApiResponse<List<String>> getRankingClasses() {
+        List<String> classes = gradeService.getRankingClasses();
+        return ApiResponse.success(classes);
+    }
+
     @GetMapping("/ranking")
     public ApiResponse<List<ClassRankingDTO>> getClassRanking(
             @RequestParam(required = false) String term,
