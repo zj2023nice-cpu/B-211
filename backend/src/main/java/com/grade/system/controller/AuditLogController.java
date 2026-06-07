@@ -61,6 +61,13 @@ public class AuditLogController {
             @RequestParam(required = false) String startDate,
             @RequestParam(required = false) String endDate) {
         
+        if (!UserContext.isLoggedIn()) {
+            return ApiResponse.error("用户未登录");
+        }
+        if (!"ADMIN".equals(UserContext.getUserRole())) {
+            return ApiResponse.error("无权限访问全量审计日志");
+        }
+        
         if (page != null && size != null) {
             PageResponse<AuditLog> auditLogPage = auditLogService.getAuditLogsPage(
                     username, module, action, status, startDate, endDate, page, size);
@@ -72,17 +79,32 @@ public class AuditLogController {
 
     @GetMapping("/{id}")
     public ApiResponse<AuditLog> getAuditLog(@PathVariable Long id) {
+        if (!UserContext.isLoggedIn()) {
+            return ApiResponse.error("用户未登录");
+        }
+        if (!"ADMIN".equals(UserContext.getUserRole())) {
+            return ApiResponse.error("无权限查看日志详情");
+        }
         return ApiResponse.success("审计日志查询功能仅支持列表查询");
     }
 
     @GetMapping("/export")
-    public ResponseEntity<byte[]> exportAuditLogs(
+    public ResponseEntity<?> exportAuditLogs(
             @RequestParam(required = false) String username,
             @RequestParam(required = false) String module,
             @RequestParam(required = false) String action,
             @RequestParam(required = false) Boolean status,
             @RequestParam(required = false) String startDate,
             @RequestParam(required = false) String endDate) {
+        
+        if (!UserContext.isLoggedIn()) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(ApiResponse.error("用户未登录"));
+        }
+        if (!"ADMIN".equals(UserContext.getUserRole())) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(ApiResponse.error("无权限导出审计日志"));
+        }
         
         byte[] csvData = auditLogService.exportAuditLogsToCsv(
                 username, module, action, status, startDate, endDate);
