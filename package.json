@@ -1,0 +1,17 @@
+{
+  "name": "grade-management-system",
+  "version": "0.0.1",
+  "private": true,
+  "description": "学生成绩管理系统 - 前后端分离项目",
+  "scripts": {
+    "dev": "cd frontend && npm run dev",
+    "build:frontend": "cd frontend && npm install && npm run build",
+    "test:backend": "cd backend && mvn test",
+    "build:backend": "cd backend && mvn package -DskipTests",
+    "build": "npm run build:frontend && npm run build:backend",
+    "test": "npm run test:backend",
+    "verify": "npm run build:frontend && npm run test:backend",
+    "docker:up": "docker compose up --build",
+    "docker:down": "docker compose down"
+  }
+}

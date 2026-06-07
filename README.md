@@ -69,6 +69,52 @@
   - 响应式设计，适配不同屏幕尺寸。
   - 柔和的渐变色主题与交互动画。
 
+## 🔧 工程化质量保障
+
+### 统一命令入口
+
+项目根目录提供了统一的命令入口（`package.json`），无需切换目录即可执行常用操作：
+
+```bash
+# 安装依赖（首次使用）
+npm install
+
+# 启动前端开发服务器
+npm run dev
+
+# 构建前端项目
+npm run build:frontend
+
+# 运行后端单元测试
+npm run test:backend
+
+# 构建后端项目（跳过测试）
+npm run build:backend
+
+# 整体构建（前端 + 后端）
+npm run build
+
+# 运行所有质量检查（前端构建 + 后端测试）
+npm run verify
+
+# Docker 相关
+npm run docker:up    # 启动所有服务
+npm run docker:down  # 停止所有服务
+```
+
+### CI/CD 持续集成
+
+项目配置了 GitHub Actions 自动流水线，每次提交代码或提交 Pull Request 时会自动执行：
+
+1. **前端构建检查**：确保前端代码可以正常编译
+2. **后端单元测试**：运行所有后端单元测试，保证代码质量
+
+触发条件：
+- `push` 到 `main` 或 `master` 分支
+- 任何 `pull_request` 提交
+
+工作流配置文件位于：`.github/workflows/ci.yml`
+
 ## 🔍 Verification - 基本验证方式
 
 1. **服务健康检查**：
@@ -79,3 +125,6 @@
 
 3. **数据库连接验证**：
    如果能成功登录并看到数据，说明后端与 MySQL 数据库连接正常。
+
+4. **工程化验证**：
+   执行 `npm run verify`，确保前端可构建、后端测试全部通过。
