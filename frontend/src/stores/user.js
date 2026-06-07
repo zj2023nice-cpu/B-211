@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import request from '@/utils/request'
 
 export const useUserStore = defineStore('user', () => {
   const user = ref(JSON.parse(localStorage.getItem('user')) || null)
@@ -12,9 +13,14 @@ export const useUserStore = defineStore('user', () => {
     localStorage.setItem('user', JSON.stringify(userData))
   }
 
-  function logout() {
-    user.value = null
-    localStorage.removeItem('user')
+  async function logout() {
+    try {
+      await request.post('/auth/logout', {}, { skipErrorNotification: true })
+    } catch (e) {
+    } finally {
+      user.value = null
+      localStorage.removeItem('user')
+    }
   }
 
   return { user, isLoggedIn, role, setUser, logout }

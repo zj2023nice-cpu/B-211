@@ -1,5 +1,6 @@
 package com.grade.system.controller;
 
+import com.grade.system.context.UserContext;
 import com.grade.system.dto.ApiResponse;
 import com.grade.system.dto.PageResponse;
 import com.grade.system.entity.AuditLog;
@@ -23,7 +24,6 @@ public class AuditLogController {
 
     @GetMapping("/my")
     public ApiResponse<?> getMyAuditLogs(
-            @RequestHeader(value = "X-User-Id", required = false) String userIdStr,
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size,
             @RequestParam(required = false) String module,
@@ -32,15 +32,13 @@ public class AuditLogController {
             @RequestParam(required = false) String startDate,
             @RequestParam(required = false) String endDate) {
         
-        if (userIdStr == null || userIdStr.isEmpty()) {
+        if (!UserContext.isLoggedIn()) {
             return ApiResponse.error("用户未登录");
         }
         
-        Long userId;
-        try {
-            userId = Long.parseLong(userIdStr);
-        } catch (NumberFormatException e) {
-            return ApiResponse.error("无效的用户ID");
+        Long userId = UserContext.getUserId();
+        if (userId == null) {
+            return ApiResponse.error("无效的用户身份");
         }
         
         if (page != null && size != null) {

@@ -150,9 +150,9 @@ const userAvatar = computed(() => {
   return '' // Return URL if available
 })
 
-const handleCommand = (command) => {
+const handleCommand = async (command) => {
   if (command === 'logout') {
-    userStore.logout()
+    await userStore.logout()
     router.push('/login')
   } else if (command === 'profile') {
     router.push('/profile')

@@ -1,15 +1,13 @@
 package com.grade.system.aspect;
 
+import com.grade.system.context.UserContext;
 import com.grade.system.service.AuditLogService;
-import jakarta.servlet.http.HttpServletRequest;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
 import org.aspectj.lang.annotation.Pointcut;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
-import org.springframework.web.context.request.RequestContextHolder;
-import org.springframework.web.context.request.ServletRequestAttributes;
 
 @Aspect
 @Component
@@ -24,22 +22,9 @@ public class AuditLogAspect {
 
     @Around("auditLogPointcut()")
     public Object around(ProceedingJoinPoint joinPoint) throws Throwable {
-        Long userId = null;
-        String username = null;
-        String userRole = null;
-        
-        HttpServletRequest request = getCurrentRequest();
-        if (request != null) {
-            String userIdStr = request.getHeader("X-User-Id");
-            if (userIdStr != null && !userIdStr.isEmpty()) {
-                try {
-                    userId = Long.parseLong(userIdStr);
-                } catch (NumberFormatException e) {
-                }
-            }
-            username = request.getHeader("X-Username");
-            userRole = request.getHeader("X-User-Role");
-        }
+        Long userId = UserContext.getUserId();
+        String username = UserContext.getUsername();
+        String userRole = UserContext.getUserRole();
         
         Object result = null;
         Throwable exception = null;
@@ -60,10 +45,5 @@ public class AuditLogAspect {
                     userRole
             );
         }
-    }
-
-    private HttpServletRequest getCurrentRequest() {
-        ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
-        return attributes != null ? attributes.getRequest() : null;
     }
 }
