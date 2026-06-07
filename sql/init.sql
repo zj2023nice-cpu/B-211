@@ -67,4 +67,30 @@ INSERT INTO `grades` VALUES (3, 4, 1, 58, 62, '2023-Fall');
 INSERT INTO `grades` VALUES (4, 3, 3, 90, NULL, '2023-Fall');
 INSERT INTO `grades` VALUES (5, 4, 3, 88, NULL, '2023-Fall');
 
+-- ----------------------------
+-- Table structure for announcements
+-- ----------------------------
+DROP TABLE IF EXISTS `announcements`;
+CREATE TABLE `announcements` (
+  `id` bigint(20) NOT NULL AUTO_INCREMENT,
+  `title` varchar(200) NOT NULL COMMENT '公告标题',
+  `content` text COMMENT '公告内容',
+  `type` varchar(20) NOT NULL DEFAULT 'NOTICE' COMMENT '公告类型：IMPORTANT-重要, NOTICE-通知, INFO-消息',
+  `status` tinyint(1) NOT NULL DEFAULT 1 COMMENT '状态：0-下线, 1-上线',
+  `sort_order` int(11) NOT NULL DEFAULT 0 COMMENT '排序权重',
+  `created_by` bigint(20) DEFAULT NULL COMMENT '创建人ID',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`id`),
+  KEY `idx_status` (`status`),
+  KEY `idx_created_at` (`created_at`)
+) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4;
+
+-- ----------------------------
+-- Records of announcements
+-- ----------------------------
+INSERT INTO `announcements` VALUES (1, '关于本学期期末考试成绩录入的通知', '请各位老师在规定时间内完成期末考试成绩的录入工作，逾期将关闭系统。', 'IMPORTANT', 1, 1, 1, NOW(), NOW());
+INSERT INTO `announcements` VALUES (2, '系统维护升级公告 (v1.2.0)', '系统将于本周六凌晨进行维护升级，届时系统将暂停服务，请提前做好相关安排。', 'NOTICE', 1, 2, 1, NOW(), NOW());
+INSERT INTO `announcements` VALUES (3, '欢迎新同学加入成绩管理系统', '欢迎各位新同学使用成绩管理系统，如有问题请联系管理员。', 'INFO', 1, 3, 1, NOW(), NOW());
+
 SET FOREIGN_KEY_CHECKS = 1;

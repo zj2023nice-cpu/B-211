@@ -41,6 +41,12 @@ const router = createRouter({
           meta: { title: '审计日志', roles: ['ADMIN'] }
         },
         {
+          path: 'announcements',
+          name: 'AnnouncementManage',
+          component: () => import('../views/AnnouncementManage.vue'),
+          meta: { title: '公告管理', roles: ['ADMIN'] }
+        },
+        {
           path: 'grades-manage',
           name: 'GradeManage',
           component: () => import('../views/GradeManage.vue'),

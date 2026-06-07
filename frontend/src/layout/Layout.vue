@@ -37,6 +37,10 @@
             <el-icon><Document /></el-icon>
             <template #title>审计日志</template>
           </el-menu-item>
+          <el-menu-item index="/announcements">
+            <el-icon><Bell /></el-icon>
+            <template #title>公告管理</template>
+          </el-menu-item>
         </el-sub-menu>
         
         <el-menu-item index="/grades-manage" v-if="['ADMIN', 'TEACHER', 'HEAD_TEACHER'].includes(userStore.role)">
@@ -102,7 +106,7 @@
 import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
-import { Expand, Fold, School, Odometer, Setting, User, Reading, Edit, DataLine, ArrowDown, Document, Warning } from '@element-plus/icons-vue'
+import { Expand, Fold, School, Odometer, Setting, User, Reading, Edit, DataLine, ArrowDown, Document, Warning, Bell } from '@element-plus/icons-vue'
 
 const route = useRoute()
 const router = useRouter()

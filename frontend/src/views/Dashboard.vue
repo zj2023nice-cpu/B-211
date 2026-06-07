@@ -28,25 +28,24 @@
           <template #header>
             <div class="card-header">
               <span class="header-title"><el-icon><Bell /></el-icon> 系统公告</span>
-            
             </div>
           </template>
-          <div class="announcement-list">
-            <div class="announcement-item">
-              <el-tag size="small" type="danger" effect="light">重要</el-tag>
-              <span class="title">关于本学期期末考试成绩录入的通知</span>
-              <span class="date">2023-12-01</span>
-            </div>
-            <div class="announcement-item">
-              <el-tag size="small" type="primary" effect="light">通知</el-tag>
-              <span class="title">系统维护升级公告 (v1.2.0)</span>
-              <span class="date">2023-11-20</span>
-            </div>
-            <div class="announcement-item">
-              <el-tag size="small" type="success" effect="light">消息</el-tag>
-              <span class="title">欢迎新同学加入成绩管理系统</span>
-              <span class="date">2023-09-01</span>
-            </div>
+          <div class="announcement-list" v-loading="announcementLoading">
+            <template v-if="announcements.length > 0">
+              <div 
+                v-for="item in announcements" 
+                :key="item.id" 
+                class="announcement-item"
+                @click="handleViewAnnouncement(item)"
+              >
+                <el-tag size="small" :type="getTypeTagType(item.type)" effect="light">
+                  {{ getTypeName(item.type) }}
+                </el-tag>
+                <span class="title">{{ item.title }}</span>
+                <span class="date">{{ formatDate(item.createdAt) }}</span>
+              </div>
+            </template>
+            <el-empty v-else description="暂无公告" :image-size="80" />
           </div>
         </el-card>
       </el-col>
@@ -69,6 +68,23 @@
          </el-card>
       </el-col>
     </el-row>
+
+    <el-dialog v-model="detailVisible" title="公告详情" width="500px">
+      <el-descriptions :column="1" border v-if="currentAnnouncement">
+        <el-descriptions-item label="标题">{{ currentAnnouncement.title }}</el-descriptions-item>
+        <el-descriptions-item label="类型">
+          <el-tag :type="getTypeTagType(currentAnnouncement.type)" size="small">
+            {{ getTypeName(currentAnnouncement.type) }}
+          </el-tag>
+        </el-descriptions-item>
+        <el-descriptions-item label="发布时间">{{ formatDateTime(currentAnnouncement.createdAt) }}</el-descriptions-item>
+        <el-descriptions-item label="内容">
+          <div style="white-space: pre-wrap; line-height: 1.6; min-height: 60px;">
+            {{ currentAnnouncement.content || '暂无内容' }}
+          </div>
+        </el-descriptions-item>
+      </el-descriptions>
+    </el-dialog>
   </div>
 </template>
 
@@ -78,6 +94,7 @@ import { useUserStore } from '@/stores/user'
 import * as echarts from 'echarts'
 import { Bell, TrendCharts } from '@element-plus/icons-vue'
 import request from '@/utils/request'
+import { ElDialog } from 'element-plus'
 
 const userStore = useUserStore()
 const chartRef = ref(null)
@@ -86,6 +103,10 @@ const avatarUrl = ref('')
 const lastLoginTime = ref('暂无记录')
 const loading = ref(false)
 const dashboardStats = ref(null)
+const announcements = ref([])
+const announcementLoading = ref(false)
+const detailVisible = ref(false)
+const currentAnnouncement = ref(null)
 
 const roleName = computed(() => {
   const map = {
@@ -96,6 +117,59 @@ const roleName = computed(() => {
   }
   return map[userStore.user?.role] || userStore.user?.role
 })
+
+const getTypeName = (type) => {
+  const map = { 'IMPORTANT': '重要', 'NOTICE': '通知', 'INFO': '消息' }
+  return map[type] || type || '-'
+}
+
+const getTypeTagType = (type) => {
+  const map = { 'IMPORTANT': 'danger', 'NOTICE': 'primary', 'INFO': 'success' }
+  return map[type] || 'info'
+}
+
+const formatDate = (dateStr) => {
+  if (!dateStr) return '-'
+  const date = new Date(dateStr)
+  if (isNaN(date.getTime())) return dateStr
+  return date.toLocaleDateString('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  })
+}
+
+const formatDateTime = (dateStr) => {
+  if (!dateStr) return '-'
+  const date = new Date(dateStr)
+  if (isNaN(date.getTime())) return dateStr
+  return date.toLocaleString('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+  })
+}
+
+const fetchAnnouncements = async () => {
+  announcementLoading.value = true
+  try {
+    const res = await request.get('/announcements/active')
+    if (res && Array.isArray(res)) {
+      announcements.value = res
+    }
+  } catch (error) {
+    console.error('获取公告数据失败:', error)
+  } finally {
+    announcementLoading.value = false
+  }
+}
+
+const handleViewAnnouncement = (item) => {
+  currentAnnouncement.value = item
+  detailVisible.value = true
+}
 
 const fetchDashboardData = async () => {
   loading.value = true
@@ -213,6 +287,7 @@ watch(chartPeriod, () => {
 
 onMounted(async () => {
   await fetchDashboardData()
+  fetchAnnouncements()
 })
 </script>
 
