@@ -4,6 +4,7 @@ import com.grade.system.annotation.AuditLog;
 import com.grade.system.context.UserContext;
 import com.grade.system.dto.ApiResponse;
 import com.grade.system.dto.PageResponse;
+import com.grade.system.dto.ChangePasswordRequest;
 import com.grade.system.dto.ResetPasswordRequest;
 import com.grade.system.dto.UserImportResult;
 import com.grade.system.entity.User;
@@ -82,6 +83,32 @@ public class UserController {
         String newPassword = request != null ? request.getNewPassword() : null;
         userService.resetPassword(id, newPassword);
         return ApiResponse.success("密码重置成功", null);
+    }
+
+    @AuditLog(module = "个人中心", action = "修改密码", description = "用户修改自己的密码", saveParams = false)
+    @PutMapping("/{id}/change-password")
+    public ApiResponse<Void> changePassword(@PathVariable Long id, @RequestBody ChangePasswordRequest request) {
+        if (!UserContext.isLoggedIn()) {
+            return ApiResponse.error("用户未登录");
+        }
+        if (!UserContext.getUserId().equals(id)) {
+            return ApiResponse.error("无权限修改其他用户的密码");
+        }
+        if (request.getOldPassword() == null || request.getOldPassword().isEmpty()) {
+            return ApiResponse.error("请输入原密码");
+        }
+        if (request.getNewPassword() == null || request.getNewPassword().isEmpty()) {
+            return ApiResponse.error("请输入新密码");
+        }
+        if (request.getNewPassword().length() < 6) {
+            return ApiResponse.error("新密码长度不能少于6位");
+        }
+        
+        boolean success = userService.changePassword(id, request.getOldPassword(), request.getNewPassword());
+        if (!success) {
+            return ApiResponse.error("原密码错误，请重新输入");
+        }
+        return ApiResponse.success("密码修改成功", null);
     }
 
     @AuditLog(module = "用户管理", action = "导入", description = "批量导入用户")

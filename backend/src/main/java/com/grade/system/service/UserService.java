@@ -146,6 +146,26 @@ public class UserService {
         userRepository.save(user);
     }
 
+    public boolean changePassword(Long userId, String oldPassword, String newPassword) {
+        User user = userRepository.findById(userId).orElseThrow(() ->
+            new ResourceNotFoundException(ErrorCode.USER_NOT_FOUND));
+        
+        boolean oldPasswordMatches;
+        if (isBCryptHash(user.getPassword())) {
+            oldPasswordMatches = passwordEncoder.matches(oldPassword, user.getPassword());
+        } else {
+            oldPasswordMatches = user.getPassword().equals(oldPassword);
+        }
+        
+        if (!oldPasswordMatches) {
+            return false;
+        }
+        
+        user.setPassword(passwordEncoder.encode(newPassword));
+        userRepository.save(user);
+        return true;
+    }
+
     private static final Set<String> VALID_ROLES = new HashSet<>(Arrays.asList("ADMIN", "TEACHER", "HEAD_TEACHER", "STUDENT"));
     private static final Set<String> ROLES_REQUIRE_CLASS = new HashSet<>(Arrays.asList("STUDENT", "HEAD_TEACHER"));
 

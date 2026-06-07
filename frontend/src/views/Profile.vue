@@ -49,6 +49,9 @@
             </el-tab-pane>
             <el-tab-pane label="修改密码" name="password">
               <el-form :model="pwdForm" :rules="pwdRules" ref="pwdFormRef" label-width="100px">
+                <el-form-item label="原密码" prop="oldPassword">
+                  <el-input v-model="pwdForm.oldPassword" type="password" show-password />
+                </el-form-item>
                 <el-form-item label="新密码" prop="password">
                   <el-input v-model="pwdForm.password" type="password" show-password />
                 </el-form-item>
@@ -88,6 +91,7 @@ const infoForm = reactive({
 })
 
 const pwdForm = reactive({
+  oldPassword: '',
   password: '',
   confirmPassword: ''
 })
@@ -97,6 +101,9 @@ const infoRules = {
 }
 
 const pwdRules = {
+  oldPassword: [
+    { required: true, message: '请输入原密码', trigger: 'blur' }
+  ],
   password: [
     { required: true, message: '请输入新密码', trigger: 'blur' },
     { min: 6, message: '密码长度不能少于6位', trigger: 'blur' }
@@ -141,8 +148,10 @@ const handleInfoSubmit = async () => {
           name: infoForm.name,
           contact: infoForm.contact
         })
-        userStore.user.name = res.name
-        userStore.user.contact = res.contact
+        userStore.updateUser({
+          name: res.name,
+          contact: res.contact
+        })
         ElMessage.success('基本资料修改成功')
       } finally {
         loading.value = false
@@ -157,12 +166,15 @@ const handlePwdSubmit = async () => {
     if (valid) {
       loading.value = true
       try {
-        await request.put(`/users/${userStore.user.id}`, {
-          password: pwdForm.password
+        await request.put(`/users/${userStore.user.id}/change-password`, {
+          oldPassword: pwdForm.oldPassword,
+          newPassword: pwdForm.password
         })
         ElMessage.success('密码修改成功')
+        pwdForm.oldPassword = ''
         pwdForm.password = ''
         pwdForm.confirmPassword = ''
+      } catch (error) {
       } finally {
         loading.value = false
       }

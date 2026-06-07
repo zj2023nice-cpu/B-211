@@ -13,6 +13,13 @@ export const useUserStore = defineStore('user', () => {
     localStorage.setItem('user', JSON.stringify(userData))
   }
 
+  function updateUser(updates) {
+    if (user.value) {
+      user.value = { ...user.value, ...updates }
+      localStorage.setItem('user', JSON.stringify(user.value))
+    }
+  }
+
   async function logout() {
     try {
       await request.post('/auth/logout', {}, { skipErrorNotification: true })
@@ -23,5 +30,5 @@ export const useUserStore = defineStore('user', () => {
     }
   }
 
-  return { user, isLoggedIn, role, setUser, logout }
+  return { user, isLoggedIn, role, setUser, updateUser, logout }
 })
