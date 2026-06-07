@@ -12,7 +12,7 @@ import java.util.List;
 
 public interface AnnouncementRepository extends JpaRepository<Announcement, Long> {
 
-    List<Announcement> findByStatusTrueOrderBySortOrderAscCreatedAtDesc();
+    List<Announcement> findByStatusTrueOrderByCreatedAtDesc();
 
     Page<Announcement> findAllByOrderByCreatedAtDesc(Pageable pageable);
 

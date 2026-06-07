@@ -24,7 +24,7 @@ public class AnnouncementService {
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
     public List<Announcement> getActiveAnnouncements() {
-        return announcementRepository.findByStatusTrueOrderBySortOrderAscCreatedAtDesc();
+        return announcementRepository.findByStatusTrueOrderByCreatedAtDesc();
     }
 
     public PageResponse<Announcement> getAnnouncementsPage(
