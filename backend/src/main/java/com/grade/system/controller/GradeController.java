@@ -34,7 +34,8 @@ public class GradeController {
                     null, className, term, courseId, studentName, null, page, size);
             return ApiResponse.success(gradePage);
         } else {
-            List<Grade> grades = gradeService.getAllGrades();
+            List<Grade> grades = gradeService.getGradesWithFilter(
+                    null, className, term, courseId, studentName, null);
             return ApiResponse.success(grades);
         }
     }
@@ -51,7 +52,8 @@ public class GradeController {
                     null, null, term, courseId, null, studentId, page, size);
             return ApiResponse.success(gradePage);
         } else {
-            List<Grade> grades = gradeService.getGradesByStudent(studentId);
+            List<Grade> grades = gradeService.getGradesWithFilter(
+                    null, null, term, courseId, null, studentId);
             return ApiResponse.success(grades);
         }
     }
@@ -70,7 +72,8 @@ public class GradeController {
                     teacherId, className, term, courseId, studentName, null, page, size);
             return ApiResponse.success(gradePage);
         } else {
-            List<Grade> grades = gradeService.getGradesByTeacher(teacherId);
+            List<Grade> grades = gradeService.getGradesWithFilter(
+                    teacherId, className, term, courseId, studentName, null);
             return ApiResponse.success(grades);
         }
     }
@@ -88,7 +91,8 @@ public class GradeController {
                     null, className, term, courseId, studentName, null, page, size);
             return ApiResponse.success(gradePage);
         } else {
-            List<Grade> grades = gradeService.getGradesByClass(className);
+            List<Grade> grades = gradeService.getGradesWithFilter(
+                    null, className, term, courseId, studentName, null);
             return ApiResponse.success(grades);
         }
     }

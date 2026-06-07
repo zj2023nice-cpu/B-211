@@ -76,6 +76,20 @@ public class GradeService {
         return response;
     }
 
+    public List<Grade> getGradesWithFilter(
+            Long teacherId,
+            String className,
+            String term,
+            Long courseId,
+            String studentName,
+            Long studentId) {
+        
+        Specification<Grade> spec = GradeSpecification.withFilters(
+                teacherId, className, term, courseId, studentName, studentId);
+        
+        return gradeRepository.findAll(spec, Sort.by("id").descending());
+    }
+
     public PageResponse<Grade> getGradesPageWithFilter(
             Long teacherId,
             String className,

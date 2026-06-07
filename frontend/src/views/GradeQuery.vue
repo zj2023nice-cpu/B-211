@@ -44,7 +44,7 @@
         </div>
       </template>
       
-      <el-table v-if="!isReportMode" :data="tableData" style="width: 100%" v-loading="loading" stripe border height="400">
+      <el-table v-if="!isReportMode" :data="displayData" style="width: 100%" v-loading="loading" stripe border height="400">
         <el-table-column prop="term" label="学期" align="center" width="120" sortable />
         <el-table-column prop="courseId" label="课程" align="center" sortable :sort-method="(a, b) => getCourseName(a.courseId).localeCompare(getCourseName(b.courseId))">
              <template #default="scope">
@@ -136,11 +136,9 @@ import * as echarts from 'echarts'
 const userStore = useUserStore()
 const loading = ref(false)
 const tableData = ref([])
-const allReportData = ref([])
 const courses = ref([])
 const allCourses = ref([])
 const students = ref([])
-const classNameQuery = ref('')
 const queryMode = ref('my_class')
 const chartRef = ref(null)
 const radarChartRef = ref(null)
@@ -170,22 +168,20 @@ const currentPageForDisplay = computed({
 })
 
 const termOptions = computed(() => filterTermOptions.value)
-
 const courseOptions = computed(() => filterCourseOptions.value)
-
 const classOptions = computed(() => filterClassOptions.value)
 
-const filteredTableData = computed(() => allReportData.value)
+const displayData = computed(() => tableData.value)
 
 const reportCourses = computed(() => {
-    const courseIds = [...new Set(allReportData.value.map(item => item.courseId))]
+    const courseIds = [...new Set(displayData.value.map(item => item.courseId))]
     return courseIds.map(id => allCourses.value.find(c => c.id === id)).filter(Boolean)
 })
 
 const reportData = computed(() => {
     const studentMap = {}
     
-    allReportData.value.forEach(grade => {
+    displayData.value.forEach(grade => {
         if (!studentMap[grade.studentId]) {
             const student = students.value.find(s => s.id === grade.studentId)
             studentMap[grade.studentId] = {
@@ -266,48 +262,61 @@ const getScoreClass = (score) => {
     return ''
 }
 
-const fetchData = async () => {
-  loading.value = true
-  try {
-    let gradesUrl = '/grades'
-    const filterParams = {}
-    
-    if (userStore.role === 'STUDENT' && userStore.user?.id) {
-        gradesUrl = `/grades/student/${userStore.user.id}`
-        filterParams.studentId = userStore.user.id
-    } else if (userStore.role === 'TEACHER' && userStore.user?.id) {
-        gradesUrl = `/grades/teacher/${userStore.user.id}`
-        filterParams.teacherId = userStore.user.id
-    } else if (userStore.role === 'HEAD_TEACHER') {
-        if (queryMode.value === 'my_class' && userStore.user?.className) {
-             gradesUrl = `/grades/class/${userStore.user.className}`
-             filterParams.className = userStore.user.className
-        } else if (userStore.user?.id) {
-             gradesUrl = `/grades/teacher/${userStore.user.id}`
-             filterParams.teacherId = userStore.user.id
-        }
-    }
-    
+const buildFilterParams = () => {
     const params = {}
-    if (termFilter.value) {
-        params.term = termFilter.value
-    }
-    if (courseFilter.value) {
-        params.courseId = courseFilter.value
-    }
+    if (termFilter.value) params.term = termFilter.value
+    if (courseFilter.value) params.courseId = courseFilter.value
     if (classFilter.value && !(userStore.role === 'HEAD_TEACHER' && queryMode.value === 'my_class')) {
         params.className = classFilter.value
     }
-    if (studentFilter.value) {
-        params.studentName = studentFilter.value
+    if (studentFilter.value) params.studentName = studentFilter.value
+    return params
+}
+
+const getGradesBaseUrl = () => {
+    if (userStore.role === 'STUDENT' && userStore.user?.id) {
+        return `/grades/student/${userStore.user.id}`
+    } else if (userStore.role === 'TEACHER' && userStore.user?.id) {
+        return `/grades/teacher/${userStore.user.id}`
+    } else if (userStore.role === 'HEAD_TEACHER') {
+        if (queryMode.value === 'my_class' && userStore.user?.className) {
+            return `/grades/class/${userStore.user.className}`
+        } else if (userStore.user?.id) {
+            return `/grades/teacher/${userStore.user.id}`
+        }
     }
+    return '/grades'
+}
+
+const getFilterOptionsParams = () => {
+    const params = {}
+    if (userStore.role === 'STUDENT' && userStore.user?.id) {
+        params.studentId = userStore.user.id
+    } else if (userStore.role === 'TEACHER' && userStore.user?.id) {
+        params.teacherId = userStore.user.id
+    } else if (userStore.role === 'HEAD_TEACHER') {
+        if (queryMode.value === 'my_class' && userStore.user?.className) {
+            params.className = userStore.user.className
+        } else if (userStore.user?.id) {
+            params.teacherId = userStore.user.id
+        }
+    }
+    return params
+}
+
+const fetchData = async () => {
+  loading.value = true
+  try {
+    const gradesUrl = getGradesBaseUrl()
+    const filterParams = buildFilterParams()
+    const optionsParams = getFilterOptionsParams()
     
     const [coursesRes, usersRes, filterTermsRes, filterCoursesRes, filterClassesRes] = await Promise.all([
         request.get('/courses'),
         request.get('/users'),
-        request.get('/grades/filter/terms', { params: filterParams }).catch(() => []),
-        request.get('/grades/filter/courses', { params: { ...filterParams, term: termFilter.value } }).catch(() => []),
-        userStore.role !== 'STUDENT' ? request.get('/grades/filter/classes', { params: { ...filterParams, term: termFilter.value } }).catch(() => []) : Promise.resolve([])
+        request.get('/grades/filter/terms', { params: optionsParams }).catch(() => []),
+        request.get('/grades/filter/courses', { params: { ...optionsParams, term: termFilter.value } }).catch(() => []),
+        userStore.role !== 'STUDENT' ? request.get('/grades/filter/classes', { params: { ...optionsParams, term: termFilter.value } }).catch(() => []) : Promise.resolve([])
     ])
     
     filterTermOptions.value = filterTermsRes || []
@@ -318,17 +327,14 @@ const fetchData = async () => {
     courses.value = coursesRes
     students.value = usersRes.filter(u => u.role === 'STUDENT')
     
-    const allGradesRes = await request.get(gradesUrl, { params })
-    const allFilteredData = allGradesRes.content || allGradesRes
-    allReportData.value = allFilteredData
-    
     if (isReportMode.value) {
-        tableData.value = allFilteredData
-        total.value = allFilteredData.length
+        const gradesRes = await request.get(gradesUrl, { params: filterParams })
+        tableData.value = gradesRes
+        total.value = gradesRes.length
     } else {
         const gradesRes = await request.get(gradesUrl, { 
             params: { 
-                ...params, 
+                ...filterParams, 
                 page: currentPage.value, 
                 size: pageSize.value 
             } 
@@ -348,17 +354,7 @@ const fetchData = async () => {
   }
 }
 
-const handleClassQuery = async () => {
-    if (!classNameQuery.value) return
-    loading.value = true
-    try {
-        const res = await request.get(`/grades/class/${classNameQuery.value}`)
-        tableData.value = res
-        updateChart()
-    } finally {
-        loading.value = false
-    }
-}
+
 
 const exportData = () => {
     if (isReportMode.value) {
@@ -387,7 +383,7 @@ const exportData = () => {
     }
 
     const header = ['学期', '课程', '学生', '班级', '成绩', '补考成绩']
-    const data = filteredTableData.value.map(row => [
+    const data = displayData.value.map(row => [
         row.term,
         getCourseName(row.courseId),
         getStudentName(row.studentId),
@@ -412,7 +408,7 @@ const updateChart = () => {
     nextTick(() => {
         if (!myChart) myChart = echarts.init(chartRef.value)
         
-        const dataToAnalyze = allReportData.value
+        const dataToAnalyze = displayData.value
         
         // 1. Bar Chart: Course Average
         const courseGroups = {}
