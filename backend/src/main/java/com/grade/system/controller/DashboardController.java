@@ -22,9 +22,10 @@ public class DashboardController {
             @RequestHeader(value = "X-User-Id", required = false) Long userId,
             @RequestHeader(value = "X-Username", required = false) String username,
             @RequestHeader(value = "X-User-Role", required = false) String role,
-            @RequestParam(required = false) String className) {
+            @RequestParam(required = false) String className,
+            @RequestParam(required = false, defaultValue = "term") String period) {
 
-        DashboardStatsDTO stats = dashboardService.getDashboardStats(userId, username, role, className);
+        DashboardStatsDTO stats = dashboardService.getDashboardStats(userId, username, role, className, period);
         return ApiResponse.success("获取统计数据成功", stats);
     }
 

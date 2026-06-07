@@ -8,10 +8,12 @@ import com.grade.system.dto.TeacherCourseOverviewDTO;
 import com.grade.system.entity.AuditLog;
 import com.grade.system.entity.Course;
 import com.grade.system.entity.Grade;
+import com.grade.system.entity.Term;
 import com.grade.system.entity.User;
 import com.grade.system.repository.AuditLogRepository;
 import com.grade.system.repository.CourseRepository;
 import com.grade.system.repository.GradeRepository;
+import com.grade.system.repository.TermRepository;
 import com.grade.system.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
@@ -20,8 +22,11 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
+import java.time.DayOfWeek;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.time.temporal.TemporalAdjusters;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -41,14 +46,18 @@ public class DashboardService {
     private AuditLogRepository auditLogRepository;
 
     @Autowired
+    private TermRepository termRepository;
+
+    @Autowired
     private ObjectMapper objectMapper;
 
-    public DashboardStatsDTO getDashboardStats(Long userId, String username, String role, String className) {
+    public DashboardStatsDTO getDashboardStats(Long userId, String username, String role, String className, String period) {
         DashboardStatsDTO stats = new DashboardStatsDTO();
 
         stats.setLastLoginTime(getLastLoginTime(username));
+        stats.setCurrentPeriod(period);
 
-        List<Grade> relevantGrades = getRelevantGrades(userId, role, className);
+        List<Grade> relevantGrades = getRelevantGrades(userId, role, className, period);
         List<Course> relevantCourses = getRelevantCourses(userId, role);
 
         List<DashboardStatsDTO.CourseStatDTO> courseStats = calculateCourseStats(relevantGrades, relevantCourses);
@@ -59,7 +68,58 @@ public class DashboardService {
         stats.setTotalGrades(relevantGrades.size());
         stats.setOverallAverage(calculateOverallAverage(relevantGrades));
 
+        calculateRoleSpecificStats(stats, userId, role, className, period, relevantGrades, relevantCourses);
+
         return stats;
+    }
+
+    private void calculateRoleSpecificStats(DashboardStatsDTO stats, Long userId, String role, String className, 
+                                             String period, List<Grade> relevantGrades, List<Course> relevantCourses) {
+        if ("STUDENT".equals(role)) {
+            long failCount = relevantGrades.stream()
+                    .filter(g -> {
+                        Double score = g.getMakeupScore() != null ? g.getMakeupScore() : g.getScore();
+                        return score != null && score < 60;
+                    })
+                    .count();
+            stats.setFailCourseCount((int) failCount);
+            
+            long ungradedCount = relevantCourses.size() - relevantGrades.stream()
+                    .filter(g -> g.getScore() != null || g.getMakeupScore() != null)
+                    .map(Grade::getCourseId)
+                    .distinct()
+                    .count();
+            stats.setUngradedCount((int) Math.max(0, ungradedCount));
+            stats.setPendingCount(stats.getUngradedCount());
+        } else if ("TEACHER".equals(role)) {
+            long ungradedCount = relevantGrades.stream()
+                    .filter(g -> g.getScore() == null && g.getMakeupScore() == null)
+                    .count();
+            stats.setUngradedCount((int) ungradedCount);
+            stats.setPendingCount((int) ungradedCount);
+            
+            long failCount = relevantGrades.stream()
+                    .filter(g -> {
+                        Double score = g.getMakeupScore() != null ? g.getMakeupScore() : g.getScore();
+                        return score != null && score < 60;
+                    })
+                    .count();
+            stats.setFailCourseCount((int) failCount);
+        } else {
+            long ungradedCount = relevantGrades.stream()
+                    .filter(g -> g.getScore() == null && g.getMakeupScore() == null)
+                    .count();
+            stats.setUngradedCount((int) ungradedCount);
+            stats.setPendingCount((int) ungradedCount);
+            
+            long failCount = relevantGrades.stream()
+                    .filter(g -> {
+                        Double score = g.getMakeupScore() != null ? g.getMakeupScore() : g.getScore();
+                        return score != null && score < 60;
+                    })
+                    .count();
+            stats.setFailCourseCount((int) failCount);
+        }
     }
 
     private String getLastLoginTime(String username) {
@@ -85,41 +145,80 @@ public class DashboardService {
         return "暂无记录";
     }
 
-    private List<Grade> getRelevantGrades(Long userId, String role, String className) {
+    private List<Grade> getRelevantGrades(Long userId, String role, String className, String period) {
+        List<Grade> allRelevantGrades;
+        
         if (userId == null) {
-            return gradeRepository.findAll();
+            allRelevantGrades = gradeRepository.findAll();
+        } else {
+            switch (role) {
+                case "STUDENT":
+                    allRelevantGrades = gradeRepository.findByStudentId(userId);
+                    break;
+                case "TEACHER":
+                    List<Course> teacherCourses = courseRepository.findByTeacherId(userId);
+                    if (teacherCourses.isEmpty()) {
+                        allRelevantGrades = new ArrayList<>();
+                    } else {
+                        List<Long> courseIds = teacherCourses.stream()
+                                .map(Course::getId)
+                                .collect(Collectors.toList());
+                        allRelevantGrades = gradeRepository.findByCourseIdIn(courseIds);
+                    }
+                    break;
+                case "HEAD_TEACHER":
+                    if (className != null && !className.isEmpty()) {
+                        List<User> classStudents = userRepository.findByClassName(className).stream()
+                                .filter(u -> "STUDENT".equals(u.getRole()))
+                                .collect(Collectors.toList());
+                        if (classStudents.isEmpty()) {
+                            allRelevantGrades = new ArrayList<>();
+                        } else {
+                            List<Long> studentIds = classStudents.stream()
+                                    .map(User::getId)
+                                    .collect(Collectors.toList());
+                            allRelevantGrades = gradeRepository.findByStudentIdIn(studentIds);
+                        }
+                    } else {
+                        allRelevantGrades = gradeRepository.findAll();
+                    }
+                    break;
+                case "ADMIN":
+                default:
+                    allRelevantGrades = gradeRepository.findAll();
+                    break;
+            }
         }
 
-        switch (role) {
-            case "STUDENT":
-                return gradeRepository.findByStudentId(userId);
-            case "TEACHER":
-                List<Course> teacherCourses = courseRepository.findByTeacherId(userId);
-                if (teacherCourses.isEmpty()) {
-                    return new ArrayList<>();
-                }
-                List<Long> courseIds = teacherCourses.stream()
-                        .map(Course::getId)
-                        .collect(Collectors.toList());
-                return gradeRepository.findByCourseIdIn(courseIds);
-            case "HEAD_TEACHER":
-                if (className != null && !className.isEmpty()) {
-                    List<User> classStudents = userRepository.findByClassName(className).stream()
-                            .filter(u -> "STUDENT".equals(u.getRole()))
-                            .collect(Collectors.toList());
-                    if (classStudents.isEmpty()) {
-                        return new ArrayList<>();
-                    }
-                    List<Long> studentIds = classStudents.stream()
-                            .map(User::getId)
-                            .collect(Collectors.toList());
-                    return gradeRepository.findByStudentIdIn(studentIds);
-                }
-                return gradeRepository.findAll();
-            case "ADMIN":
-            default:
-                return gradeRepository.findAll();
+        return filterGradesByPeriod(allRelevantGrades, period);
+    }
+
+    private List<Grade> filterGradesByPeriod(List<Grade> grades, String period) {
+        if (grades == null || grades.isEmpty()) {
+            return grades;
         }
+
+        if ("week".equals(period)) {
+            LocalDateTime weekStart = LocalDate.now().with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)).atStartOfDay();
+            return grades.stream()
+                    .filter(g -> g.getCreatedAt() != null && g.getCreatedAt().isAfter(weekStart))
+                    .collect(Collectors.toList());
+        } else if ("month".equals(period)) {
+            LocalDateTime monthStart = LocalDate.now().with(TemporalAdjusters.firstDayOfMonth()).atStartOfDay();
+            return grades.stream()
+                    .filter(g -> g.getCreatedAt() != null && g.getCreatedAt().isAfter(monthStart))
+                    .collect(Collectors.toList());
+        } else if ("term".equals(period)) {
+            List<Term> enabledTerms = termRepository.findByEnabledTrueOrderBySortOrderDescCreatedAtDesc();
+            if (!enabledTerms.isEmpty()) {
+                String currentTermName = enabledTerms.get(0).getName();
+                return grades.stream()
+                        .filter(g -> currentTermName.equals(g.getTerm()))
+                        .collect(Collectors.toList());
+            }
+        }
+        
+        return grades;
     }
 
     private List<Course> getRelevantCourses(Long userId, String role) {

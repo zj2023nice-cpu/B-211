@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 public interface GradeRepository extends JpaRepository<Grade, Long>, JpaSpecificationExecutor<Grade> {
@@ -15,6 +16,11 @@ public interface GradeRepository extends JpaRepository<Grade, Long>, JpaSpecific
     List<Grade> findByStudentIdIn(List<Long> studentIds);
     List<Grade> findByTerm(String term);
     List<Grade> findByTermAndStudentIdIn(String term, List<Long> studentIds);
+
+    List<Grade> findByCreatedAtAfter(LocalDateTime dateTime);
+    List<Grade> findByStudentIdAndCreatedAtAfter(Long studentId, LocalDateTime dateTime);
+    List<Grade> findByCourseIdInAndCreatedAtAfter(List<Long> courseIds, LocalDateTime dateTime);
+    List<Grade> findByStudentIdInAndCreatedAtAfter(List<Long> studentIds, LocalDateTime dateTime);
 
     boolean existsByStudentIdAndCourseIdAndTerm(Long studentId, Long courseId, String term);
 

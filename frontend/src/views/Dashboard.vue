@@ -16,9 +16,21 @@
               <span class="label">上次登录</span>
               <span class="value">{{ lastLoginTime }}</span>
             </div>
-            <div class="stat-item">
-              <span class="label">待办事项</span>
-              <span class="value">0</span>
+            <div class="stat-item" v-if="userStore.role === 'STUDENT'">
+              <span class="label">不及格科目</span>
+              <span class="value" :class="{ 'text-red': dashboardStats?.failCourseCount > 0 }">{{ dashboardStats?.failCourseCount || 0 }}</span>
+            </div>
+            <div class="stat-item" v-if="userStore.role === 'STUDENT'">
+              <span class="label">未出成绩</span>
+              <span class="value">{{ dashboardStats?.ungradedCount || 0 }}</span>
+            </div>
+            <div class="stat-item" v-if="userStore.role !== 'STUDENT'">
+              <span class="label">待录入成绩</span>
+              <span class="value" :class="{ 'text-orange': dashboardStats?.pendingCount > 0 }">{{ dashboardStats?.pendingCount || 0 }}</span>
+            </div>
+            <div class="stat-item" v-if="userStore.role !== 'STUDENT'">
+              <span class="label">不及格人次</span>
+              <span class="value" :class="{ 'text-red': dashboardStats?.failCourseCount > 0 }">{{ dashboardStats?.failCourseCount || 0 }}</span>
             </div>
           </div>
         </el-card>
@@ -195,6 +207,7 @@ const fetchDashboardData = async () => {
     if (userStore.user?.className) {
       params.className = userStore.user.className
     }
+    params.period = chartPeriod.value
 
     const res = await request.get('/dashboard/stats', { params }).catch(() => null)
 
@@ -299,7 +312,7 @@ const updateChart = () => {
 }
 
 watch(chartPeriod, () => {
-  updateChart()
+  fetchDashboardData()
 })
 
 onMounted(async () => {
@@ -367,6 +380,14 @@ onMounted(async () => {
   font-weight: bold;
   color: var(--text-primary);
   font-family: 'Roboto', sans-serif;
+}
+
+.stat-item .value.text-red {
+  color: #f56c6c;
+}
+
+.stat-item .value.text-orange {
+  color: #e6a23c;
 }
 
 .card-header {

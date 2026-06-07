@@ -11,6 +11,10 @@ public class DashboardStatsDTO {
     private Integer totalCourses;
     private Integer totalGrades;
     private Double overallAverage;
+    private Integer pendingCount;
+    private Integer failCourseCount;
+    private Integer ungradedCount;
+    private String currentPeriod;
 
     @Data
     public static class CourseStatDTO {
