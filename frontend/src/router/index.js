@@ -65,6 +65,12 @@ const router = createRouter({
           meta: { title: '成绩预警', roles: ['ADMIN', 'TEACHER', 'HEAD_TEACHER'] }
         },
         {
+          path: 'class-ranking',
+          name: 'ClassRanking',
+          component: () => import('../views/ClassRanking.vue'),
+          meta: { title: '班级排行榜' }
+        },
+        {
           path: 'profile',
           name: 'Profile',
           component: () => import('../views/Profile.vue'),

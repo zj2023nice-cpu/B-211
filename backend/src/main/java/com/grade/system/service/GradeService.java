@@ -1,5 +1,6 @@
 package com.grade.system.service;
 
+import com.grade.system.dto.ClassRankingDTO;
 import com.grade.system.dto.GradeImportResult;
 import com.grade.system.dto.GradeWarningDTO;
 import com.grade.system.dto.PageResponse;
@@ -442,5 +443,82 @@ public class GradeService {
         response.setFirst(page == 0);
         response.setLast(page >= totalPages - 1);
         return response;
+    }
+
+    public List<String> getAllTerms() {
+        return gradeRepository.findDistinctTerms();
+    }
+
+    public List<ClassRankingDTO> getClassRanking(String term, String className) {
+        List<Grade> grades;
+        if (term != null && !term.isEmpty()) {
+            grades = gradeRepository.findByTerm(term);
+        } else {
+            grades = gradeRepository.findAll();
+        }
+
+        List<User> students = userRepository.findByRole("STUDENT");
+        if (className != null && !className.isEmpty()) {
+            students = students.stream()
+                    .filter(s -> className.equals(s.getClassName()))
+                    .collect(Collectors.toList());
+        }
+
+        List<Long> studentIds = students.stream()
+                .map(User::getId)
+                .collect(Collectors.toList());
+
+        java.util.Map<Long, List<Grade>> studentGradesMap = grades.stream()
+                .filter(g -> studentIds.contains(g.getStudentId()))
+                .collect(Collectors.groupingBy(Grade::getStudentId));
+
+        List<ClassRankingDTO> rankingList = new ArrayList<>();
+        for (User student : students) {
+            List<Grade> studentGrades = studentGradesMap.getOrDefault(student.getId(), new ArrayList<>());
+
+            double totalScore = 0.0;
+            int courseCount = 0;
+
+            for (Grade grade : studentGrades) {
+                Double effectiveScore = grade.getMakeupScore() != null ? grade.getMakeupScore() : grade.getScore();
+                if (effectiveScore != null) {
+                    totalScore += effectiveScore;
+                    courseCount++;
+                }
+            }
+
+            if (courseCount > 0) {
+                ClassRankingDTO dto = new ClassRankingDTO();
+                dto.setStudentId(student.getId());
+                dto.setStudentName(student.getName());
+                dto.setClassName(student.getClassName());
+                dto.setTotalScore(Math.round(totalScore * 100.0) / 100.0);
+                dto.setAverageScore(Math.round((totalScore / courseCount) * 100.0) / 100.0);
+                dto.setCourseCount(courseCount);
+                rankingList.add(dto);
+            }
+        }
+
+        rankingList.sort((a, b) -> Double.compare(b.getTotalScore(), a.getTotalScore()));
+
+        int currentRank = 1;
+        for (int i = 0; i < rankingList.size(); i++) {
+            if (i > 0) {
+                if (rankingList.get(i).getTotalScore().equals(rankingList.get(i - 1).getTotalScore())) {
+                    rankingList.get(i).setRank(rankingList.get(i - 1).getRank());
+                    rankingList.get(i).setIsTied(true);
+                    rankingList.get(i - 1).setIsTied(true);
+                } else {
+                    currentRank = i + 1;
+                    rankingList.get(i).setRank(currentRank);
+                    rankingList.get(i).setIsTied(false);
+                }
+            } else {
+                rankingList.get(i).setRank(currentRank);
+                rankingList.get(i).setIsTied(false);
+            }
+        }
+
+        return rankingList;
     }
 }

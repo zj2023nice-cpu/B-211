@@ -2,6 +2,7 @@ package com.grade.system.controller;
 
 import com.grade.system.annotation.AuditLog;
 import com.grade.system.dto.ApiResponse;
+import com.grade.system.dto.ClassRankingDTO;
 import com.grade.system.dto.GradeImportResult;
 import com.grade.system.dto.PageResponse;
 import com.grade.system.entity.Grade;
@@ -127,5 +128,19 @@ public class GradeController {
         } catch (Exception e) {
             return ApiResponse.error("导入失败：" + e.getMessage());
         }
+    }
+
+    @GetMapping("/ranking/terms")
+    public ApiResponse<List<String>> getAllTerms() {
+        List<String> terms = gradeService.getAllTerms();
+        return ApiResponse.success(terms);
+    }
+
+    @GetMapping("/ranking")
+    public ApiResponse<List<ClassRankingDTO>> getClassRanking(
+            @RequestParam(required = false) String term,
+            @RequestParam(required = false) String className) {
+        List<ClassRankingDTO> ranking = gradeService.getClassRanking(term, className);
+        return ApiResponse.success(ranking);
     }
 }
