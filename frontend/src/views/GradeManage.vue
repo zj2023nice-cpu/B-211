@@ -240,6 +240,13 @@ const total = ref(0)
 const allGradesForOptions = ref([])
 const termOptionsFromAPI = ref([])
 const enabledTermsFromAPI = ref([])
+const appliedQueryState = ref({
+    filterTerm: '',
+    filterCourse: '',
+    filterStudent: '',
+    currentPage: 0,
+    pageSize: 10
+})
 
 const importDialogVisible = ref(false)
 const uploading = ref(false)
@@ -280,6 +287,24 @@ const dialogTermOptions = computed(() => {
     return options
 })
 
+const syncAppliedQueryState = () => {
+    appliedQueryState.value = {
+        filterTerm: filterTerm.value,
+        filterCourse: filterCourse.value,
+        filterStudent: filterStudent.value,
+        currentPage: currentPage.value,
+        pageSize: pageSize.value
+    }
+}
+
+const restoreAppliedQueryState = () => {
+    filterTerm.value = appliedQueryState.value.filterTerm
+    filterCourse.value = appliedQueryState.value.filterCourse
+    filterStudent.value = appliedQueryState.value.filterStudent
+    currentPage.value = appliedQueryState.value.currentPage
+    pageSize.value = appliedQueryState.value.pageSize
+}
+
 const confirmUnsavedChanges = async () => {
     if (!isBatchMode.value || modifiedRows.value.size === 0) {
         return true
@@ -302,10 +327,11 @@ const confirmUnsavedChanges = async () => {
 }
 
 const handlePageChange = async (val) => {
+    const previousPage = appliedQueryState.value.currentPage
     const confirmed = await confirmUnsavedChanges()
     if (!confirmed) {
         nextTick(() => {
-            currentPageForDisplay.value = currentPage.value + 1
+            currentPage.value = previousPage
         })
         return
     }
@@ -315,8 +341,16 @@ const handlePageChange = async (val) => {
 }
 
 const handleSizeChange = async (val) => {
+    const previousPageSize = appliedQueryState.value.pageSize
+    const previousPage = appliedQueryState.value.currentPage
     const confirmed = await confirmUnsavedChanges()
-    if (!confirmed) return
+    if (!confirmed) {
+        nextTick(() => {
+            pageSize.value = previousPageSize
+            currentPage.value = previousPage
+        })
+        return
+    }
     modifiedRows.value.clear()
     pageSize.value = val
     currentPage.value = 0
@@ -476,6 +510,8 @@ const fetchData = async () => {
         tableData.value = gradesRes
         total.value = gradesRes.length
     }
+
+    syncAppliedQueryState()
   } finally {
     loading.value = false
   }
@@ -542,14 +578,18 @@ const getScoreClass = (score) => {
     return ''
 }
 
-let filterWatchInitialized = false
+let suppressFilterWatch = false
 watch([filterTerm, filterCourse, filterStudent], async () => {
-    if (!filterWatchInitialized) {
-        filterWatchInitialized = true
+    if (suppressFilterWatch) {
+        suppressFilterWatch = false
         return
     }
     const confirmed = await confirmUnsavedChanges()
-    if (!confirmed) return
+    if (!confirmed) {
+        suppressFilterWatch = true
+        restoreAppliedQueryState()
+        return
+    }
     modifiedRows.value.clear()
     currentPage.value = 0
     fetchData()
