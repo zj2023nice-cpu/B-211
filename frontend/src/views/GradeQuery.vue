@@ -77,6 +77,7 @@
       <el-table v-else :data="reportData" style="width: 100%" v-loading="loading" stripe border height="400">
         <el-table-column prop="studentId" label="学号" align="center" width="100" sortable fixed />
         <el-table-column prop="name" label="姓名" align="center" width="120" fixed />
+        <el-table-column prop="className" label="班级" align="center" width="130" v-if="userStore.role !== 'STUDENT'" />
         <el-table-column v-for="course in reportCourses" :key="course.id" :label="course.name" align="center" width="120">
             <template #default="scope">
                 <span :class="getScoreClass(scope.row.scores[course.id] || 0)" v-if="scope.row.scores[course.id] !== undefined">
@@ -136,6 +137,7 @@ import * as echarts from 'echarts'
 const userStore = useUserStore()
 const loading = ref(false)
 const tableData = ref([])
+const fullTableData = ref([])
 const courses = ref([])
 const allCourses = ref([])
 const students = ref([])
@@ -172,16 +174,37 @@ const courseOptions = computed(() => filterCourseOptions.value)
 const classOptions = computed(() => filterClassOptions.value)
 
 const displayData = computed(() => tableData.value)
+const chartData = computed(() => fullTableData.value)
 
 const reportCourses = computed(() => {
-    const courseIds = [...new Set(displayData.value.map(item => item.courseId))]
-    return courseIds.map(id => allCourses.value.find(c => c.id === id)).filter(Boolean)
+    const courseIds = [...new Set(fullTableData.value.map(item => item.courseId))]
+    const courseList = courseIds.map(id => allCourses.value.find(c => c.id === id)).filter(Boolean)
+    
+    const courseScoresCount = {}
+    fullTableData.value.forEach(grade => {
+        const finalScore = grade.makeupScore !== null ? grade.makeupScore : grade.score
+        if (finalScore !== null && finalScore !== undefined) {
+            courseScoresCount[grade.courseId] = (courseScoresCount[grade.courseId] || 0) + 1
+        }
+    })
+    
+    return courseList
+        .filter(course => courseScoresCount[course.id] > 0)
+        .sort((a, b) => {
+            if (a.id && b.id) {
+                return String(a.id).localeCompare(String(b.id))
+            }
+            return a.name.localeCompare(b.name)
+        })
 })
 
 const reportData = computed(() => {
     const studentMap = {}
+    const availableCourseIds = reportCourses.value.map(c => c.id)
     
-    displayData.value.forEach(grade => {
+    fullTableData.value.forEach(grade => {
+        if (!availableCourseIds.includes(grade.courseId)) return
+        
         if (!studentMap[grade.studentId]) {
             const student = students.value.find(s => s.id === grade.studentId)
             studentMap[grade.studentId] = {
@@ -194,9 +217,11 @@ const reportData = computed(() => {
             }
         }
         const finalScore = grade.makeupScore !== null ? grade.makeupScore : grade.score
-        studentMap[grade.studentId].scores[grade.courseId] = finalScore
-        studentMap[grade.studentId].total += finalScore
-        studentMap[grade.studentId].count += 1
+        if (finalScore !== null && finalScore !== undefined) {
+            studentMap[grade.studentId].scores[grade.courseId] = finalScore
+            studentMap[grade.studentId].total += finalScore
+            studentMap[grade.studentId].count += 1
+        }
     })
     
     const studentList = Object.values(studentMap).map(student => ({
@@ -204,15 +229,34 @@ const reportData = computed(() => {
         avg: student.count > 0 ? parseFloat((student.total / student.count).toFixed(2)) : 0
     }))
     
-    studentList.sort((a, b) => b.total - a.total)
+    studentList.sort((a, b) => {
+        if (b.total !== a.total) return b.total - a.total
+        if (b.avg !== a.avg) return b.avg - a.avg
+        return a.name.localeCompare(b.name)
+    })
+    
+    let currentRank = 1
+    let previousTotal = null
+    let previousAvg = null
+    let sameRankCount = 0
     
     studentList.forEach((student, index) => {
         if (index === 0) {
             student.rank = 1
-        } else if (student.total === studentList[index - 1].total) {
-            student.rank = studentList[index - 1].rank
+            previousTotal = student.total
+            previousAvg = student.avg
+            sameRankCount = 1
         } else {
-            student.rank = index + 1
+            if (student.total === previousTotal && student.avg === previousAvg) {
+                student.rank = currentRank
+                sameRankCount++
+            } else {
+                currentRank += sameRankCount
+                student.rank = currentRank
+                previousTotal = student.total
+                previousAvg = student.avg
+                sameRankCount = 1
+            }
         }
     })
     
@@ -327,10 +371,12 @@ const fetchData = async () => {
     courses.value = coursesRes
     students.value = usersRes.filter(u => u.role === 'STUDENT')
     
+    const fullGradesRes = await request.get(gradesUrl, { params: filterParams })
+    fullTableData.value = fullGradesRes
+    
     if (isReportMode.value) {
-        const gradesRes = await request.get(gradesUrl, { params: filterParams })
-        tableData.value = gradesRes
-        total.value = gradesRes.length
+        tableData.value = fullGradesRes
+        total.value = fullGradesRes.length
     } else {
         const gradesRes = await request.get(gradesUrl, { 
             params: { 
@@ -358,20 +404,34 @@ const fetchData = async () => {
 
 const exportData = () => {
     if (isReportMode.value) {
-        const header = ['学号', '姓名', '班级', ...reportCourses.value.map(c => c.name), '总分', '平均分', '排名']
-        const data = reportData.value.map(row => [
-            row.studentId,
-            row.name,
-            row.className,
-            ...reportCourses.value.map(c => row.scores[c.id] !== undefined ? row.scores[c.id] : '-'),
-            row.total,
-            row.avg,
-            row.rank
-        ])
+        const sortedCourses = [...reportCourses.value].sort((a, b) => {
+            if (a.id && b.id) {
+                return String(a.id).localeCompare(String(b.id))
+            }
+            return a.name.localeCompare(b.name)
+        })
+        
+        const header = userStore.role !== 'STUDENT' 
+            ? ['学号', '姓名', '班级', ...sortedCourses.map(c => c.name), '总分', '平均分', '排名']
+            : ['学号', '姓名', ...sortedCourses.map(c => c.name), '总分', '平均分', '排名']
+        
+        const data = reportData.value.map(row => {
+            const baseRow = [row.studentId, row.name]
+            if (userStore.role !== 'STUDENT') {
+                baseRow.push(row.className)
+            }
+            baseRow.push(
+                ...sortedCourses.map(c => row.scores[c.id] !== undefined ? row.scores[c.id] : '-'),
+                row.total,
+                row.avg,
+                row.rank
+            )
+            return baseRow
+        })
         
         const csvContent = [
             header.join(','),
-            ...data.map(row => row.join(','))
+            ...data.map(row => row.map(cell => `"${cell}"`).join(','))
         ].join('\n')
         
         const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' })
@@ -394,7 +454,7 @@ const exportData = () => {
     
     const csvContent = [
         header.join(','),
-        ...data.map(row => row.join(','))
+        ...data.map(row => row.map(cell => `"${cell}"`).join(','))
     ].join('\n')
     
     const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' })
@@ -408,7 +468,7 @@ const updateChart = () => {
     nextTick(() => {
         if (!myChart) myChart = echarts.init(chartRef.value)
         
-        const dataToAnalyze = displayData.value
+        const dataToAnalyze = chartData.value
         
         // 1. Bar Chart: Course Average
         const courseGroups = {}
