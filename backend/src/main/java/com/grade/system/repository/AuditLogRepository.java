@@ -57,4 +57,21 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
             @Param("status") Boolean status,
             @Param("startTime") LocalDateTime startTime,
             @Param("endTime") LocalDateTime endTime);
+
+    @Query("SELECT a FROM AuditLog a WHERE " +
+           "a.userId = :userId AND " +
+           "(:module IS NULL OR a.module = :module) AND " +
+           "(:action IS NULL OR a.action = :action) AND " +
+           "(:status IS NULL OR a.status = :status) AND " +
+           "(:startTime IS NULL OR a.createdAt >= :startTime) AND " +
+           "(:endTime IS NULL OR a.createdAt <= :endTime) " +
+           "ORDER BY a.createdAt DESC")
+    Page<AuditLog> findByUserIdAndConditions(
+            @Param("userId") Long userId,
+            @Param("module") String module,
+            @Param("action") String action,
+            @Param("status") Boolean status,
+            @Param("startTime") LocalDateTime startTime,
+            @Param("endTime") LocalDateTime endTime,
+            Pageable pageable);
 }

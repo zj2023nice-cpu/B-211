@@ -20,6 +20,9 @@
             <p><el-icon><Phone /></el-icon> 联系方式: {{ userStore.user?.contact || '未填写' }}</p>
             <p v-if="userStore.user?.className"><el-icon><School /></el-icon> 班级: {{ userStore.user?.className }}</p>
           </div>
+          <div class="quick-actions">
+            <el-button type="primary" @click="goToMyLogs" :icon="Document">查看我的操作记录</el-button>
+          </div>
         </el-card>
       </el-col>
       
@@ -66,12 +69,14 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
 import request from '@/utils/request'
 import { ElMessage } from 'element-plus'
-import { User, Phone, School } from '@element-plus/icons-vue'
+import { User, Phone, School, Document } from '@element-plus/icons-vue'
 
 const userStore = useUserStore()
+const router = useRouter()
 const activeTab = ref('info')
 const loading = ref(false)
 const infoFormRef = ref(null)
@@ -164,6 +169,10 @@ const handlePwdSubmit = async () => {
     }
   })
 }
+
+const goToMyLogs = () => {
+  router.push('/my-operation-logs')
+}
 </script>
 
 <style scoped>
@@ -201,5 +210,12 @@ const handlePwdSubmit = async () => {
   align-items: center;
   gap: 10px;
   color: var(--text-secondary);
+}
+
+.quick-actions {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border-color);
+  text-align: center;
 }
 </style>

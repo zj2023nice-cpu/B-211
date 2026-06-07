@@ -21,6 +21,37 @@ public class AuditLogController {
     @Autowired
     private AuditLogService auditLogService;
 
+    @GetMapping("/my")
+    public ApiResponse<?> getMyAuditLogs(
+            @RequestHeader(value = "X-User-Id", required = false) String userIdStr,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size,
+            @RequestParam(required = false) String module,
+            @RequestParam(required = false) String action,
+            @RequestParam(required = false) Boolean status,
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate) {
+        
+        if (userIdStr == null || userIdStr.isEmpty()) {
+            return ApiResponse.error("用户未登录");
+        }
+        
+        Long userId;
+        try {
+            userId = Long.parseLong(userIdStr);
+        } catch (NumberFormatException e) {
+            return ApiResponse.error("无效的用户ID");
+        }
+        
+        if (page != null && size != null) {
+            PageResponse<AuditLog> auditLogPage = auditLogService.getMyAuditLogsPage(
+                    userId, module, action, status, startDate, endDate, page, size);
+            return ApiResponse.success(auditLogPage);
+        } else {
+            return ApiResponse.success("请使用分页参数查询");
+        }
+    }
+
     @GetMapping
     public ApiResponse<?> getAuditLogs(
             @RequestParam(required = false) Integer page,

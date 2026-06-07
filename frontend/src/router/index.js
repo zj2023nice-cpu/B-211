@@ -69,6 +69,12 @@ const router = createRouter({
           name: 'Profile',
           component: () => import('../views/Profile.vue'),
           meta: { title: '个人中心' }
+        },
+        {
+          path: 'my-operation-logs',
+          name: 'MyOperationLogs',
+          component: () => import('../views/MyOperationLogs.vue'),
+          meta: { title: '我的操作记录' }
         }
       ]
     }

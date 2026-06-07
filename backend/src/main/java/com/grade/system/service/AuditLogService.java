@@ -76,6 +76,42 @@ public class AuditLogService {
         return response;
     }
 
+    public PageResponse<AuditLog> getMyAuditLogsPage(
+            Long userId,
+            String module,
+            String action,
+            Boolean status,
+            String startDate,
+            String endDate,
+            int page,
+            int size) {
+        
+        Pageable pageable = PageRequest.of(page, size);
+        
+        LocalDateTime startTime = null;
+        LocalDateTime endTime = null;
+        
+        if (startDate != null && !startDate.isEmpty()) {
+            startTime = LocalDate.parse(startDate, DATE_FORMATTER).atStartOfDay();
+        }
+        if (endDate != null && !endDate.isEmpty()) {
+            endTime = LocalDate.parse(endDate, DATE_FORMATTER).atTime(LocalTime.MAX);
+        }
+        
+        Page<AuditLog> auditLogPage = auditLogRepository.findByUserIdAndConditions(
+                userId, module, action, status, startTime, endTime, pageable);
+        
+        PageResponse<AuditLog> response = new PageResponse<>();
+        response.setContent(auditLogPage.getContent());
+        response.setPageNumber(auditLogPage.getNumber());
+        response.setPageSize(auditLogPage.getSize());
+        response.setTotalElements(auditLogPage.getTotalElements());
+        response.setTotalPages(auditLogPage.getTotalPages());
+        response.setFirst(auditLogPage.isFirst());
+        response.setLast(auditLogPage.isLast());
+        return response;
+    }
+
     public byte[] exportAuditLogsToCsv(
             String username,
             String module,
