@@ -41,6 +41,9 @@ class GradeServiceTest {
     @Mock
     private UserRepository userRepository;
 
+    @Mock
+    private TermService termService;
+
     @InjectMocks
     private GradeService gradeService;
 
@@ -51,6 +54,8 @@ class GradeServiceTest {
 
     @BeforeEach
     void setUp() {
+        lenient().when(termService.getEnabledTermNames()).thenReturn(Arrays.asList("2023-2024-1", "2023-2024-2"));
+
         testGrade = new Grade();
         testGrade.setId(1L);
         testGrade.setStudentId(1L);
@@ -312,5 +317,72 @@ class GradeServiceTest {
         assertEquals(0, result.getSuccessCount());
         assertEquals(1, result.getFailCount());
         assertFalse(result.getErrors().isEmpty());
+    }
+
+    @Test
+    @DisplayName("测试保存成绩 - 非启用学期")
+    void testSaveGrade_InvalidManagedTerm() {
+        testGrade.setTerm("2025-2026-1");
+
+        RuntimeException exception = assertThrows(RuntimeException.class, () -> gradeService.saveGrade(testGrade));
+
+        assertEquals("学期必须从已启用的学期中选择", exception.getMessage());
+        verify(gradeRepository, never()).save(any(Grade.class));
+    }
+
+    @Test
+    @DisplayName("测试更新成绩 - 修改为非启用学期")
+    void testUpdateGrade_InvalidManagedTerm() {
+        Grade updatedGrade = new Grade();
+        updatedGrade.setScore(90.0);
+        updatedGrade.setMakeupScore(80.0);
+        updatedGrade.setTerm("2025-2026-1");
+
+        when(gradeRepository.findById(1L)).thenReturn(Optional.of(testGrade));
+
+        RuntimeException exception = assertThrows(RuntimeException.class, () -> gradeService.updateGrade(1L, updatedGrade));
+
+        assertEquals("学期必须从已启用的学期中选择", exception.getMessage());
+        verify(gradeRepository, never()).save(any(Grade.class));
+    }
+
+    @Test
+    @DisplayName("测试更新成绩 - 历史学期不变时允许保存")
+    void testUpdateGrade_LegacyTermUnchanged() {
+        testGrade.setTerm("2020-2021-1");
+
+        Grade updatedGrade = new Grade();
+        updatedGrade.setScore(91.0);
+        updatedGrade.setMakeupScore(81.0);
+        updatedGrade.setTerm("2020-2021-1");
+
+        when(gradeRepository.findById(1L)).thenReturn(Optional.of(testGrade));
+        when(gradeRepository.existsByStudentIdAndCourseIdAndTermAndIdNot(1L, 1L, "2020-2021-1", 1L))
+                .thenReturn(false);
+        when(gradeRepository.save(any(Grade.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Grade result = gradeService.updateGrade(1L, updatedGrade);
+
+        assertEquals("2020-2021-1", result.getTerm());
+        assertEquals(91.0, result.getScore());
+        verify(gradeRepository, times(1)).save(any(Grade.class));
+    }
+
+    @Test
+    @DisplayName("测试导入CSV成绩 - 非启用学期")
+    void testImportGradesFromCsv_InvalidManagedTerm() throws Exception {
+        String csvContent = "学期,课程名称,学生姓名,班级,成绩,补考成绩\n" +
+                "2025-2026-1,数学,张三,计算机1班,85,-";
+
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "grades.csv", "text/csv", csvContent.getBytes());
+
+        GradeImportResult result = gradeService.importGradesFromCsv(file);
+
+        assertEquals(1, result.getTotal());
+        assertEquals(0, result.getSuccessCount());
+        assertEquals(1, result.getFailCount());
+        assertEquals("学期必须从已启用的学期中选择", result.getErrors().get(0).getErrorMessage());
+        verify(gradeRepository, never()).saveAll(anyList());
     }
 }

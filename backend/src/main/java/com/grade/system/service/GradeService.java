@@ -8,6 +8,7 @@ import com.grade.system.entity.Course;
 import com.grade.system.entity.Grade;
 import com.grade.system.entity.User;
 import com.grade.system.enums.ErrorCode;
+import com.grade.system.exception.BusinessException;
 import com.grade.system.exception.DuplicateResourceException;
 import com.grade.system.exception.ResourceNotFoundException;
 import com.grade.system.repository.CourseRepository;
@@ -180,25 +181,34 @@ public class GradeService {
     }
 
     public Grade saveGrade(Grade grade) {
+        String normalizedTerm = normalizeTerm(grade.getTerm());
+        validateManagedTerm(normalizedTerm);
+        grade.setTerm(normalizedTerm);
         if (gradeRepository.existsByStudentIdAndCourseIdAndTerm(
-                grade.getStudentId(), grade.getCourseId(), grade.getTerm())) {
+                grade.getStudentId(), grade.getCourseId(), normalizedTerm)) {
             throw new DuplicateResourceException(ErrorCode.GRADE_ALREADY_EXISTS);
         }
         return gradeRepository.save(grade);
     }
 
     public Grade updateGrade(Long id, Grade gradeDetails) {
-        Grade grade = gradeRepository.findById(id).orElseThrow(() -> 
+        Grade grade = gradeRepository.findById(id).orElseThrow(() ->
             new ResourceNotFoundException(ErrorCode.GRADE_NOT_FOUND));
-        
+
+        String originalTerm = normalizeTerm(grade.getTerm());
+        String targetTerm = normalizeTerm(gradeDetails.getTerm());
+        if (!java.util.Objects.equals(originalTerm, targetTerm)) {
+            validateManagedTerm(targetTerm);
+        }
+
         if (gradeRepository.existsByStudentIdAndCourseIdAndTermAndIdNot(
-                grade.getStudentId(), grade.getCourseId(), gradeDetails.getTerm(), id)) {
+                grade.getStudentId(), grade.getCourseId(), targetTerm, id)) {
             throw new DuplicateResourceException(ErrorCode.GRADE_ALREADY_EXISTS);
         }
-        
+
         grade.setScore(gradeDetails.getScore());
         grade.setMakeupScore(gradeDetails.getMakeupScore());
-        grade.setTerm(gradeDetails.getTerm());
+        grade.setTerm(targetTerm);
         return gradeRepository.save(grade);
     }
 
@@ -237,16 +247,14 @@ public class GradeService {
                         throw new IllegalArgumentException("行数据不完整，至少需要5列");
                     }
                     
-                    String term = row[0].trim();
+                    String term = normalizeTerm(row[0]);
                     String courseName = row[1].trim();
                     String studentName = row[2].trim();
                     String className = row[3].trim();
                     String scoreStr = row[4].trim();
                     String makeupScoreStr = row.length > 5 ? row[5].trim() : "";
-                    
-                    if (term.isEmpty()) {
-                        throw new IllegalArgumentException("学期不能为空");
-                    }
+
+                    validateManagedTerm(term);
                     if (courseName.isEmpty()) {
                         throw new IllegalArgumentException("课程名称不能为空");
                     }
@@ -446,6 +454,21 @@ public class GradeService {
         response.setFirst(page == 0);
         response.setLast(page >= totalPages - 1);
         return response;
+    }
+
+    private String normalizeTerm(String term) {
+        if (term == null || term.trim().isEmpty()) {
+            throw new BusinessException("学期不能为空");
+        }
+        return term.trim();
+    }
+
+    private void validateManagedTerm(String term) {
+        String normalizedTerm = normalizeTerm(term);
+        List<String> enabledTerms = termService.getEnabledTermNames();
+        if (!enabledTerms.contains(normalizedTerm)) {
+            throw new BusinessException("学期必须从已启用的学期中选择");
+        }
     }
 
     public List<String> getAllTerms() {

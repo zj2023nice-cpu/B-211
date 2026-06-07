@@ -16,7 +16,7 @@
              <el-button v-if="isBatchMode" type="success" @click="handleBatchSave" :loading="batchSaving">保存全部变更</el-button>
              <div v-else style="display: inline-block">
                 <el-select v-model="filterTerm" placeholder="筛选学期" clearable style="width: 120px; margin-right: 10px">
-                    <el-option v-for="term in termOptions" :key="term" :label="term" :value="term" />
+                    <el-option v-for="term in filterTermOptions" :key="term" :label="term" :value="term" />
                 </el-select>
                 <el-select v-model="filterCourse" placeholder="筛选课程" clearable style="width: 120px; margin-right: 10px">
                     <el-option v-for="course in courses" :key="course.id" :label="course.name" :value="course.id" />
@@ -106,12 +106,12 @@
     <el-dialog v-model="dialogVisible" :title="dialogTitle">
       <el-form :model="form" label-width="80px">
         <el-form-item label="学期">
-          <el-select v-model="form.term" placeholder="请选择学期" style="width: 100%" filterable allow-create default-first-option>
+          <el-select v-model="form.term" placeholder="请选择学期" style="width: 100%" filterable>
             <el-option
-              v-for="term in termOptions"
-              :key="term"
-              :label="term"
-              :value="term"
+              v-for="option in dialogTermOptions"
+              :key="option.value"
+              :label="option.label"
+              :value="option.value"
             />
           </el-select>
         </el-form-item>
@@ -235,6 +235,7 @@ const pageSize = ref(10)
 const total = ref(0)
 const allGradesForOptions = ref([])
 const termOptionsFromAPI = ref([])
+const enabledTermsFromAPI = ref([])
 
 const importDialogVisible = ref(false)
 const uploading = ref(false)
@@ -250,11 +251,29 @@ const currentPageForDisplay = computed({
   }
 })
 
-const termOptions = computed(() => {
+const filterTermOptions = computed(() => {
     if (termOptionsFromAPI.value && termOptionsFromAPI.value.length > 0) {
         return termOptionsFromAPI.value
     }
     return [...new Set(allGradesForOptions.value.map(item => item.term))].sort()
+})
+
+const editableTermOptions = computed(() => enabledTermsFromAPI.value || [])
+
+const dialogTermOptions = computed(() => {
+    const options = editableTermOptions.value.map(term => ({
+        value: term,
+        label: term
+    }))
+
+    if (form.term && !editableTermOptions.value.includes(form.term)) {
+        options.push({
+            value: form.term,
+            label: `${form.term}（历史学期）`
+        })
+    }
+
+    return options
 })
 
 const handlePageChange = (val) => {
@@ -275,6 +294,8 @@ const isValidScore = (score) => {
 const handleScoreChange = (row) => {
     modifiedRows.value.add(row.id)
 }
+
+const tableRowClassName = () => ''
 
 const handleBatchSave = async () => {
     if (modifiedRows.value.size === 0) {
@@ -378,13 +399,15 @@ const fetchData = async () => {
         params.studentName = filterStudent.value
     }
     
-    const [coursesRes, usersRes, termsRes] = await Promise.all([
+    const [coursesRes, usersRes, termsRes, enabledTermsRes] = await Promise.all([
         request.get('/courses'),
         request.get('/users'),
-        request.get('/terms/names').catch(() => [])
+        request.get('/terms/names').catch(() => []),
+        request.get('/terms/enabled').catch(() => [])
     ])
-    
+
     termOptionsFromAPI.value = termsRes || []
+    enabledTermsFromAPI.value = (enabledTermsRes || []).map(term => term.name)
     
     allCourses.value = coursesRes
     courses.value = coursesRes
@@ -418,22 +441,29 @@ const fetchData = async () => {
 }
 
 const handleAdd = () => {
+  if (editableTermOptions.value.length === 0) {
+    ElMessage.warning('暂无可用学期，请先由管理员维护并启用学期')
+    return
+  }
+
   dialogTitle.value = '录入成绩'
-  const defaultTerm = termOptions.value.length > 0 ? termOptions.value[0] : '2023-Fall'
   Object.assign(form, {
     id: null,
     studentId: null,
     courseId: null,
     score: 0,
     makeupScore: null,
-    term: defaultTerm
+    term: editableTermOptions.value[0]
   })
   dialogVisible.value = true
 }
 
 const handleEdit = (row) => {
   dialogTitle.value = '修改成绩'
-  Object.assign(form, row)
+  Object.assign(form, {
+    ...row,
+    term: row.term || ''
+  })
   dialogVisible.value = true
 }
 
@@ -550,10 +580,11 @@ const handleImport = async () => {
 
 const downloadTemplate = () => {
     const header = ['学期', '课程名称', '学生姓名', '班级', '成绩', '补考成绩']
+    const templateTerm = editableTermOptions.value[0] || '请替换为已启用学期'
     const exampleData = [
-        ['2023-Fall', '高等数学', '张三', '计算机一班', '85', '-'],
-        ['2023-Fall', '高等数学', '李四', '计算机一班', '78', '82'],
-        ['2023-Fall', '大学英语', '王五', '计算机一班', '92', '-']
+        [templateTerm, '高等数学', '张三', '计算机一班', '85', '-'],
+        [templateTerm, '高等数学', '李四', '计算机一班', '78', '82'],
+        [templateTerm, '大学英语', '王五', '计算机一班', '92', '-']
     ]
     
     const csvContent = [

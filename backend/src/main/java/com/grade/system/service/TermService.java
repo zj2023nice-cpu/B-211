@@ -92,6 +92,10 @@ public class TermService {
         termRepository.deleteById(id);
     }
 
+    public List<String> getEnabledTermNames() {
+        return termRepository.findEnabledTermNames();
+    }
+
     public List<String> getAllTermNames() {
         Set<String> termNames = new LinkedHashSet<>();
 
