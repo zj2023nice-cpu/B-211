@@ -94,6 +94,24 @@ INSERT INTO `announcements` VALUES (2, '系统维护升级公告 (v1.2.0)', '系
 INSERT INTO `announcements` VALUES (3, '欢迎新同学加入成绩管理系统', '欢迎各位新同学使用成绩管理系统，如有问题请联系管理员。', 'INFO', 1, 3, 1, NOW(), NOW());
 
 -- ----------------------------
+-- Table structure for course_classes
+-- ----------------------------
+DROP TABLE IF EXISTS `course_classes`;
+CREATE TABLE `course_classes` (
+  `id` bigint(20) NOT NULL AUTO_INCREMENT,
+  `course_id` bigint(20) NOT NULL,
+  `class_name` varchar(50) NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_course_class` (`course_id`, `class_name`)
+) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4;
+
+-- ----------------------------
+-- Records of course_classes
+-- ----------------------------
+INSERT INTO `course_classes` VALUES (1, 1, '三年二班');
+INSERT INTO `course_classes` VALUES (2, 2, '三年二班');
+
+-- ----------------------------
 -- Table structure for terms
 -- ----------------------------
 DROP TABLE IF EXISTS `terms`;

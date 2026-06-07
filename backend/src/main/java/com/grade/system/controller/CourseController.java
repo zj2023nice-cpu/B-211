@@ -4,17 +4,23 @@ import com.grade.system.annotation.AuditLog;
 import com.grade.system.dto.ApiResponse;
 import com.grade.system.dto.PageResponse;
 import com.grade.system.entity.Course;
+import com.grade.system.entity.CourseClass;
+import com.grade.system.repository.CourseClassRepository;
 import com.grade.system.service.CourseService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/courses")
 public class CourseController {
     @Autowired
     private CourseService courseService;
+
+    @Autowired
+    private CourseClassRepository courseClassRepository;
 
     @GetMapping
     public ApiResponse<?> getAllCourses(
@@ -48,5 +54,33 @@ public class CourseController {
     public ApiResponse<Void> deleteCourse(@PathVariable Long id) {
         courseService.deleteCourse(id);
         return ApiResponse.success("课程删除成功", null);
+    }
+
+    @GetMapping("/{courseId}/classes")
+    public ApiResponse<List<String>> getCourseClasses(@PathVariable Long courseId) {
+        List<CourseClass> courseClasses = courseClassRepository.findByCourseId(courseId);
+        List<String> classNames = courseClasses.stream()
+                .map(CourseClass::getClassName)
+                .collect(Collectors.toList());
+        return ApiResponse.success(classNames);
+    }
+
+    @AuditLog(module = "课程管理", action = "配置授课班级", description = "配置课程授课班级范围")
+    @PostMapping("/{courseId}/classes")
+    public ApiResponse<Void> setCourseClasses(
+            @PathVariable Long courseId,
+            @RequestBody List<String> classNames) {
+        courseClassRepository.deleteByCourseId(courseId);
+        if (classNames != null && !classNames.isEmpty()) {
+            for (String className : classNames) {
+                if (className != null && !className.trim().isEmpty()) {
+                    CourseClass courseClass = new CourseClass();
+                    courseClass.setCourseId(courseId);
+                    courseClass.setClassName(className.trim());
+                    courseClassRepository.save(courseClass);
+                }
+            }
+        }
+        return ApiResponse.success("授课班级配置成功", null);
     }
 }

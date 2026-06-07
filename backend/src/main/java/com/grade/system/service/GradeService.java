@@ -7,6 +7,7 @@ import com.grade.system.dto.GradeWarningDTO;
 import com.grade.system.dto.LoginUserInfo;
 import com.grade.system.dto.PageResponse;
 import com.grade.system.entity.Course;
+import com.grade.system.entity.CourseClass;
 import com.grade.system.entity.Grade;
 import com.grade.system.entity.User;
 import com.grade.system.enums.ErrorCode;
@@ -46,6 +47,9 @@ public class GradeService {
 
     @Autowired
     private UserRepository userRepository;
+
+    @Autowired
+    private CourseClassRepository courseClassRepository;
 
     @Autowired
     private TermService termService;
@@ -511,19 +515,28 @@ public class GradeService {
             if (!currentUser.getId().equals(course.getTeacherId())) {
                 throw new BusinessException("您无权查看该课程的学生信息");
             }
+
+            List<CourseClass> courseClasses = courseClassRepository.findByCourseId(courseId);
+            if (!courseClasses.isEmpty()) {
+                List<String> classNames = courseClasses.stream()
+                        .map(CourseClass::getClassName)
+                        .collect(Collectors.toList());
+                return userRepository.findByClassNameInAndRole(classNames, "STUDENT");
+            }
+
             List<Grade> courseGrades = gradeRepository.findByCourseId(courseId);
-            if (courseGrades.isEmpty()) {
-                return new ArrayList<>();
+            if (!courseGrades.isEmpty()) {
+                List<Long> studentIds = courseGrades.stream()
+                        .map(Grade::getStudentId)
+                        .distinct()
+                        .collect(Collectors.toList());
+                List<String> classNames = userRepository.findDistinctClassNamesByStudentIds(studentIds);
+                if (!classNames.isEmpty()) {
+                    return userRepository.findByClassNameInAndRole(classNames, "STUDENT");
+                }
             }
-            List<Long> studentIds = courseGrades.stream()
-                    .map(Grade::getStudentId)
-                    .distinct()
-                    .collect(Collectors.toList());
-            List<String> classNames = userRepository.findDistinctClassNamesByStudentIds(studentIds);
-            if (classNames.isEmpty()) {
-                return new ArrayList<>();
-            }
-            return userRepository.findByClassNameInAndRole(classNames, "STUDENT");
+
+            return userRepository.findByRole("STUDENT");
         }
 
         return new ArrayList<>();
