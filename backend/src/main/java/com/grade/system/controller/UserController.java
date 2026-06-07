@@ -1,6 +1,7 @@
 package com.grade.system.controller;
 
 import com.grade.system.annotation.AuditLog;
+import com.grade.system.context.UserContext;
 import com.grade.system.dto.ApiResponse;
 import com.grade.system.dto.PageResponse;
 import com.grade.system.dto.ResetPasswordRequest;
@@ -67,6 +68,13 @@ public class UserController {
     @AuditLog(module = "用户管理", action = "重置密码", description = "重置用户密码", saveParams = false)
     @PutMapping("/{id}/reset-password")
     public ApiResponse<Void> resetPassword(@PathVariable Long id, @RequestBody(required = false) ResetPasswordRequest request) {
+        if (!UserContext.isLoggedIn()) {
+            return ApiResponse.error("用户未登录");
+        }
+        if (!"ADMIN".equals(UserContext.getUserRole())) {
+            return ApiResponse.error("无权限重置用户密码");
+        }
+        
         String newPassword = request != null ? request.getNewPassword() : null;
         userService.resetPassword(id, newPassword);
         return ApiResponse.success("密码重置成功", null);
