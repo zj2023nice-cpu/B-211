@@ -14,9 +14,11 @@ import com.grade.system.enums.ErrorCode;
 import com.grade.system.exception.BusinessException;
 import com.grade.system.exception.DuplicateResourceException;
 import com.grade.system.exception.ResourceNotFoundException;
+import com.grade.system.repository.CourseClassRepository;
 import com.grade.system.repository.CourseRepository;
 import com.grade.system.repository.GradeRepository;
 import com.grade.system.repository.UserRepository;
+import com.grade.system.specification.GradeSpecification;
 import com.opencsv.CSVReader;
 import com.opencsv.exceptions.CsvException;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -24,6 +26,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -79,49 +82,25 @@ public class GradeService {
             String term,
             Long courseId,
             String studentName,
+            Long studentId,
             int page,
             int size) {
         
-        List<Grade> allGrades = new ArrayList<>();
+        Specification<Grade> spec = GradeSpecification.withFilters(
+                teacherId, className, term, courseId, studentName, studentId);
         
-        if (teacherId != null) {
-            allGrades = getGradesByTeacher(teacherId);
-        } else if (className != null && !className.isEmpty()) {
-            allGrades = getGradesByClass(className);
-        } else {
-            allGrades = gradeRepository.findAll();
-        }
+        Pageable pageable = PageRequest.of(page, size, Sort.by("id").descending());
+        Page<Grade> gradePage = gradeRepository.findAll(spec, pageable);
         
-        List<Grade> filteredGrades = allGrades;
-        
-        if (term != null && !term.isEmpty()) {
-            final String finalTerm = term;
-            filteredGrades = filteredGrades.stream()
-                    .filter(g -> finalTerm.equals(g.getTerm()))
-                    .collect(Collectors.toList());
-        }
-        
-        if (courseId != null) {
-            filteredGrades = filteredGrades.stream()
-                    .filter(g -> courseId.equals(g.getCourseId()))
-                    .collect(Collectors.toList());
-        }
-        
-        if (studentName != null && !studentName.isEmpty()) {
-            final String finalStudentName = studentName.toLowerCase();
-            List<User> students = userRepository.findAll().stream()
-                    .filter(u -> "STUDENT".equals(u.getRole()))
-                    .filter(u -> u.getName() != null && u.getName().toLowerCase().contains(finalStudentName))
-                    .collect(Collectors.toList());
-            List<Long> matchedStudentIds = students.stream()
-                    .map(User::getId)
-                    .collect(Collectors.toList());
-            filteredGrades = filteredGrades.stream()
-                    .filter(g -> matchedStudentIds.contains(g.getStudentId()))
-                    .collect(Collectors.toList());
-        }
-        
-        return createPageResponse(filteredGrades, page, size);
+        PageResponse<Grade> response = new PageResponse<>();
+        response.setContent(gradePage.getContent());
+        response.setPageNumber(gradePage.getNumber());
+        response.setPageSize(gradePage.getSize());
+        response.setTotalElements(gradePage.getTotalElements());
+        response.setTotalPages(gradePage.getTotalPages());
+        response.setFirst(gradePage.isFirst());
+        response.setLast(gradePage.isLast());
+        return response;
     }
 
     private PageResponse<Grade> createPageResponse(List<Grade> allGrades, int page, int size) {
@@ -586,6 +565,53 @@ public class GradeService {
 
     public List<String> getAllTerms() {
         return termService.getAllTermNames();
+    }
+
+    public List<String> getFilterTerms(Long teacherId, String className, Long studentId) {
+        Specification<Grade> spec = GradeSpecification.withFilters(
+                teacherId, className, null, null, null, studentId);
+        List<Grade> grades = gradeRepository.findAll(spec);
+        return grades.stream()
+                .map(Grade::getTerm)
+                .distinct()
+                .sorted(Comparator.reverseOrder())
+                .collect(Collectors.toList());
+    }
+
+    public List<Course> getFilterCourses(Long teacherId, String className, Long studentId, String term) {
+        Specification<Grade> spec = GradeSpecification.withFilters(
+                teacherId, className, term, null, null, studentId);
+        List<Grade> grades = gradeRepository.findAll(spec);
+        List<Long> courseIds = grades.stream()
+                .map(Grade::getCourseId)
+                .distinct()
+                .collect(Collectors.toList());
+        if (courseIds.isEmpty()) {
+            return new ArrayList<>();
+        }
+        return courseRepository.findAllById(courseIds);
+    }
+
+    public List<String> getFilterClasses(Long teacherId, Long studentId, String term) {
+        Specification<Grade> spec = GradeSpecification.withFilters(
+                teacherId, null, term, null, null, studentId);
+        List<Grade> grades = gradeRepository.findAll(spec);
+        List<Long> studentIds = grades.stream()
+                .map(Grade::getStudentId)
+                .distinct()
+                .collect(Collectors.toList());
+        if (studentIds.isEmpty()) {
+            return new ArrayList<>();
+        }
+        List<User> students = userRepository.findAllById(studentIds).stream()
+                .filter(u -> "STUDENT".equals(u.getRole()))
+                .collect(Collectors.toList());
+        return students.stream()
+                .map(User::getClassName)
+                .filter(className -> className != null && !className.isEmpty())
+                .distinct()
+                .sorted()
+                .collect(Collectors.toList());
     }
 
     public List<String> getRankingClasses() {

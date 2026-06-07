@@ -22,9 +22,12 @@
                     <el-option v-for="term in filterTermOptions" :key="term" :label="term" :value="term" />
                 </el-select>
                 <el-select v-model="filterCourse" placeholder="筛选课程" clearable style="width: 120px; margin-right: 10px">
-                    <el-option v-for="course in courses" :key="course.id" :label="course.name" :value="course.id" />
+                    <el-option v-for="course in filterCourseOptions" :key="course.id" :label="course.name" :value="course.id" />
                 </el-select>
-                <el-input v-model="filterStudent" placeholder="搜索学生姓名" style="width: 120px; margin-right: 10px" clearable />
+                <el-select v-model="filterClass" placeholder="筛选班级" clearable style="width: 140px; margin-right: 10px" v-if="userStore.role !== 'STUDENT'">
+                    <el-option v-for="clazz in filterClassOptions" :key="clazz" :label="clazz" :value="clazz" />
+                </el-select>
+                <el-input v-model="filterStudent" placeholder="搜索学生姓名" style="width: 120px; margin-right: 10px" clearable v-if="userStore.role !== 'STUDENT'" />
                 <el-button type="primary" @click="handleAdd">录入成绩</el-button>
                 <el-button type="warning" @click="handleImportClick">批量导入</el-button>
                 <el-button type="info" @click="downloadTemplate">下载模板</el-button>
@@ -239,6 +242,7 @@ const loadingDialogStudents = ref(false)
 
 const filterTerm = ref('')
 const filterCourse = ref('')
+const filterClass = ref('')
 const filterStudent = ref('')
 
 const isBatchMode = ref(false)
@@ -248,12 +252,14 @@ const modifiedRows = ref(new Set())
 const currentPage = ref(0)
 const pageSize = ref(10)
 const total = ref(0)
-const allGradesForOptions = ref([])
-const termOptionsFromAPI = ref([])
+const filterTermOptions = ref([])
+const filterCourseOptions = ref([])
+const filterClassOptions = ref([])
 const enabledTermsFromAPI = ref([])
 const appliedQueryState = ref({
     filterTerm: '',
     filterCourse: '',
+    filterClass: '',
     filterStudent: '',
     currentPage: 0,
     pageSize: 10
@@ -271,13 +277,6 @@ const currentPageForDisplay = computed({
   set: (val) => {
     currentPage.value = val - 1
   }
-})
-
-const filterTermOptions = computed(() => {
-    if (termOptionsFromAPI.value && termOptionsFromAPI.value.length > 0) {
-        return termOptionsFromAPI.value
-    }
-    return [...new Set(allGradesForOptions.value.map(item => item.term))].sort()
 })
 
 const editableTermOptions = computed(() => enabledTermsFromAPI.value || [])
@@ -302,6 +301,7 @@ const syncAppliedQueryState = () => {
     appliedQueryState.value = {
         filterTerm: filterTerm.value,
         filterCourse: filterCourse.value,
+        filterClass: filterClass.value,
         filterStudent: filterStudent.value,
         currentPage: currentPage.value,
         pageSize: pageSize.value
@@ -311,6 +311,7 @@ const syncAppliedQueryState = () => {
 const restoreAppliedQueryState = () => {
     filterTerm.value = appliedQueryState.value.filterTerm
     filterCourse.value = appliedQueryState.value.filterCourse
+    filterClass.value = appliedQueryState.value.filterClass
     filterStudent.value = appliedQueryState.value.filterStudent
     currentPage.value = appliedQueryState.value.currentPage
     pageSize.value = appliedQueryState.value.pageSize
@@ -494,10 +495,16 @@ const fetchData = async () => {
   loading.value = true
   try {
     let gradesUrl = '/grades'
-    if (userStore.role === 'TEACHER' && userStore.user?.id) {
+    const filterParams = {}
+    
+    if (userStore.role === 'STUDENT' && userStore.user?.id) {
+        gradesUrl = `/grades/student/${userStore.user.id}`
+    } else if (userStore.role === 'TEACHER' && userStore.user?.id) {
         gradesUrl = `/grades/teacher/${userStore.user.id}`
+        filterParams.teacherId = userStore.user.id
     } else if (userStore.role === 'HEAD_TEACHER' && userStore.user?.className) {
         gradesUrl = `/grades/class/${userStore.user.className}`
+        filterParams.className = userStore.user.className
     }
     
     const params = {
@@ -510,35 +517,32 @@ const fetchData = async () => {
     if (filterCourse.value) {
         params.courseId = filterCourse.value
     }
+    if (filterClass.value && userStore.role !== 'HEAD_TEACHER') {
+        params.className = filterClass.value
+    }
     if (filterStudent.value) {
         params.studentName = filterStudent.value
     }
     
-    const [coursesRes, usersRes, termsRes, enabledTermsRes] = await Promise.all([
-        request.get('/courses'),
+    const [usersRes, enabledTermsRes, filterTermsRes, filterCoursesRes, filterClassesRes] = await Promise.all([
         request.get('/users'),
-        request.get('/terms/names').catch(() => []),
-        request.get('/terms/enabled').catch(() => [])
+        request.get('/terms/enabled').catch(() => []),
+        request.get('/grades/filter/terms', { params: filterParams }).catch(() => []),
+        request.get('/grades/filter/courses', { params: { ...filterParams, term: filterTerm.value } }).catch(() => []),
+        userStore.role !== 'STUDENT' ? request.get('/grades/filter/classes', { params: { ...filterParams, term: filterTerm.value } }).catch(() => []) : Promise.resolve([])
     ])
 
-    termOptionsFromAPI.value = termsRes || []
     enabledTermsFromAPI.value = (enabledTermsRes || []).map(term => term.name)
+    filterTermOptions.value = filterTermsRes || []
+    filterCourseOptions.value = filterCoursesRes || []
+    filterClassOptions.value = filterClassesRes || []
     
-    allCourses.value = coursesRes
-    courses.value = coursesRes
+    allCourses.value = filterCoursesRes || []
+    courses.value = filterCoursesRes || []
     students.value = usersRes.filter(u => u.role === 'STUDENT')
-    
-    if (userStore.role === 'TEACHER') {
-        courses.value = coursesRes.filter(c => c.teacherId === userStore.user.id)
-    }
     
     if (userStore.role === 'HEAD_TEACHER' && userStore.user.className) {
         students.value = students.value.filter(s => s.className === userStore.user.className)
-    }
-    
-    if (allGradesForOptions.value.length === 0) {
-        const allGradesRes = await request.get(gradesUrl)
-        allGradesForOptions.value = allGradesRes
     }
     
     const gradesRes = await request.get(gradesUrl, { params })
@@ -632,7 +636,7 @@ const getScoreClass = (score) => {
 }
 
 let suppressFilterWatch = false
-watch([filterTerm, filterCourse, filterStudent], async () => {
+watch([filterTerm, filterCourse, filterClass, filterStudent], async () => {
     if (suppressFilterWatch) {
         suppressFilterWatch = false
         return

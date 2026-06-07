@@ -5,6 +5,7 @@ import com.grade.system.dto.ApiResponse;
 import com.grade.system.dto.ClassRankingDTO;
 import com.grade.system.dto.GradeImportResult;
 import com.grade.system.dto.PageResponse;
+import com.grade.system.entity.Course;
 import com.grade.system.entity.Grade;
 import com.grade.system.entity.User;
 import com.grade.system.service.GradeService;
@@ -26,10 +27,11 @@ public class GradeController {
             @RequestParam(required = false) Integer size,
             @RequestParam(required = false) String term,
             @RequestParam(required = false) Long courseId,
-            @RequestParam(required = false) String studentName) {
+            @RequestParam(required = false) String studentName,
+            @RequestParam(required = false) String className) {
         if (page != null && size != null) {
             PageResponse<Grade> gradePage = gradeService.getGradesPageWithFilter(
-                    null, null, term, courseId, studentName, page, size);
+                    null, className, term, courseId, studentName, null, page, size);
             return ApiResponse.success(gradePage);
         } else {
             List<Grade> grades = gradeService.getAllGrades();
@@ -41,9 +43,12 @@ public class GradeController {
     public ApiResponse<?> getGradesByStudent(
             @PathVariable Long studentId,
             @RequestParam(required = false) Integer page,
-            @RequestParam(required = false) Integer size) {
+            @RequestParam(required = false) Integer size,
+            @RequestParam(required = false) String term,
+            @RequestParam(required = false) Long courseId) {
         if (page != null && size != null) {
-            PageResponse<Grade> gradePage = gradeService.getGradesByStudentPage(studentId, page, size);
+            PageResponse<Grade> gradePage = gradeService.getGradesPageWithFilter(
+                    null, null, term, courseId, null, studentId, page, size);
             return ApiResponse.success(gradePage);
         } else {
             List<Grade> grades = gradeService.getGradesByStudent(studentId);
@@ -58,10 +63,11 @@ public class GradeController {
             @RequestParam(required = false) Integer size,
             @RequestParam(required = false) String term,
             @RequestParam(required = false) Long courseId,
-            @RequestParam(required = false) String studentName) {
+            @RequestParam(required = false) String studentName,
+            @RequestParam(required = false) String className) {
         if (page != null && size != null) {
             PageResponse<Grade> gradePage = gradeService.getGradesPageWithFilter(
-                    teacherId, null, term, courseId, studentName, page, size);
+                    teacherId, className, term, courseId, studentName, null, page, size);
             return ApiResponse.success(gradePage);
         } else {
             List<Grade> grades = gradeService.getGradesByTeacher(teacherId);
@@ -79,12 +85,40 @@ public class GradeController {
             @RequestParam(required = false) String studentName) {
         if (page != null && size != null) {
             PageResponse<Grade> gradePage = gradeService.getGradesPageWithFilter(
-                    null, className, term, courseId, studentName, page, size);
+                    null, className, term, courseId, studentName, null, page, size);
             return ApiResponse.success(gradePage);
         } else {
             List<Grade> grades = gradeService.getGradesByClass(className);
             return ApiResponse.success(grades);
         }
+    }
+
+    @GetMapping("/filter/terms")
+    public ApiResponse<List<String>> getFilterTerms(
+            @RequestParam(required = false) Long teacherId,
+            @RequestParam(required = false) String className,
+            @RequestParam(required = false) Long studentId) {
+        List<String> terms = gradeService.getFilterTerms(teacherId, className, studentId);
+        return ApiResponse.success(terms);
+    }
+
+    @GetMapping("/filter/courses")
+    public ApiResponse<List<Course>> getFilterCourses(
+            @RequestParam(required = false) Long teacherId,
+            @RequestParam(required = false) String className,
+            @RequestParam(required = false) Long studentId,
+            @RequestParam(required = false) String term) {
+        List<Course> courses = gradeService.getFilterCourses(teacherId, className, studentId, term);
+        return ApiResponse.success(courses);
+    }
+
+    @GetMapping("/filter/classes")
+    public ApiResponse<List<String>> getFilterClasses(
+            @RequestParam(required = false) Long teacherId,
+            @RequestParam(required = false) Long studentId,
+            @RequestParam(required = false) String term) {
+        List<String> classes = gradeService.getFilterClasses(teacherId, studentId, term);
+        return ApiResponse.success(classes);
     }
 
     @AuditLog(module = "成绩管理", action = "新增", description = "新增成绩记录")

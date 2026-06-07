@@ -16,7 +16,10 @@
              </el-select>
              
              <template v-if="['TEACHER', 'HEAD_TEACHER', 'ADMIN'].includes(userStore.role)">
-                <el-radio-group v-if="userStore.role === 'HEAD_TEACHER'" v-model="queryMode" @change="fetchData" class="mode-switch">
+                <el-select v-model="classFilter" placeholder="选择班级" clearable style="width: 160px" v-if="!(userStore.role === 'HEAD_TEACHER' && queryMode.value === 'my_class')">
+                    <el-option v-for="clazz in classOptions" :key="clazz" :label="clazz" :value="clazz" />
+                </el-select>
+                <el-radio-group v-if="userStore.role === 'HEAD_TEACHER'" v-model="queryMode" @change="handleQueryModeChange" class="mode-switch">
                     <el-radio-button label="my_class">本班成绩</el-radio-button>
                     <el-radio-button label="teaching">任课成绩</el-radio-button>
                 </el-radio-group>
@@ -28,10 +31,6 @@
                         clearable 
                         style="width: 180px"
                     />
-                    <template v-if="userStore.role !== 'HEAD_TEACHER'">
-                        <el-input v-model="classNameQuery" placeholder="输入班级名称查询" :prefix-icon="Search" clearable @keyup.enter="handleClassQuery" />
-                        <el-button type="primary" :icon="Search" @click="handleClassQuery">查询</el-button>
-                    </template>
                 </div>
              </template>
              <el-switch
@@ -45,7 +44,7 @@
         </div>
       </template>
       
-      <el-table v-if="!isReportMode" :data="filteredTableData" style="width: 100%" v-loading="loading" stripe border height="400">
+      <el-table v-if="!isReportMode" :data="tableData" style="width: 100%" v-loading="loading" stripe border height="400">
         <el-table-column prop="term" label="学期" align="center" width="120" sortable />
         <el-table-column prop="courseId" label="课程" align="center" sortable :sort-method="(a, b) => getCourseName(a.courseId).localeCompare(getCourseName(b.courseId))">
              <template #default="scope">
@@ -95,6 +94,18 @@
             </template>
         </el-table-column>
       </el-table>
+      
+      <div v-if="!isReportMode" class="pagination-container">
+        <el-pagination
+          v-model:current-page="currentPageForDisplay"
+          v-model:page-size="pageSize"
+          :page-sizes="[10, 20, 50, 100]"
+          :total="total"
+          layout="total, sizes, prev, pager, next, jumper"
+          @size-change="handleSizeChange"
+          @current-change="handlePageChange"
+        />
+      </div>
     </el-card>
     
     <el-card shadow="hover" class="chart-card">
@@ -125,6 +136,7 @@ import * as echarts from 'echarts'
 const userStore = useUserStore()
 const loading = ref(false)
 const tableData = ref([])
+const allReportData = ref([])
 const courses = ref([])
 const allCourses = ref([])
 const students = ref([])
@@ -139,45 +151,41 @@ let pieChart = null
 
 const termFilter = ref('')
 const courseFilter = ref('')
+const classFilter = ref('')
 const studentFilter = ref('')
 const isReportMode = ref(false)
-const termOptionsFromAPI = ref([])
+const filterTermOptions = ref([])
+const filterCourseOptions = ref([])
+const filterClassOptions = ref([])
 
-const termOptions = computed(() => {
-    if (termOptionsFromAPI.value && termOptionsFromAPI.value.length > 0) {
-        return termOptionsFromAPI.value
-    }
-    return [...new Set(tableData.value.map(item => item.term))].sort()
+const currentPage = ref(0)
+const pageSize = ref(10)
+const total = ref(0)
+
+const currentPageForDisplay = computed({
+  get: () => currentPage.value + 1,
+  set: (val) => {
+    currentPage.value = val - 1
+  }
 })
 
-const courseOptions = computed(() => {
-    const ids = [...new Set(tableData.value.map(item => item.courseId))]
-    return ids.map(id => allCourses.value.find(c => c.id === id)).filter(Boolean)
-})
+const termOptions = computed(() => filterTermOptions.value)
 
-const filteredTableData = computed(() => {
-    return tableData.value.filter(item => {
-        const matchTerm = !termFilter.value || item.term === termFilter.value
-        const matchCourse = !courseFilter.value || item.courseId === courseFilter.value
-        
-        // Student name filter
-        const student = students.value.find(s => s.id === item.studentId)
-        const sName = student ? student.name : String(item.studentId)
-        const matchStudent = !studentFilter.value || sName.includes(studentFilter.value)
-        
-        return matchTerm && matchCourse && matchStudent
-    })
-})
+const courseOptions = computed(() => filterCourseOptions.value)
+
+const classOptions = computed(() => filterClassOptions.value)
+
+const filteredTableData = computed(() => allReportData.value)
 
 const reportCourses = computed(() => {
-    const courseIds = [...new Set(filteredTableData.value.map(item => item.courseId))]
+    const courseIds = [...new Set(allReportData.value.map(item => item.courseId))]
     return courseIds.map(id => allCourses.value.find(c => c.id === id)).filter(Boolean)
 })
 
 const reportData = computed(() => {
     const studentMap = {}
     
-    filteredTableData.value.forEach(grade => {
+    allReportData.value.forEach(grade => {
         if (!studentMap[grade.studentId]) {
             const student = students.value.find(s => s.id === grade.studentId)
             studentMap[grade.studentId] = {
@@ -215,6 +223,28 @@ const reportData = computed(() => {
     return studentList
 })
 
+const handlePageChange = (val) => {
+    currentPage.value = val - 1
+    fetchData()
+}
+
+const handleSizeChange = (val) => {
+    pageSize.value = val
+    currentPage.value = 0
+    fetchData()
+}
+
+const handleQueryModeChange = () => {
+    classFilter.value = ''
+    currentPage.value = 0
+    fetchData()
+}
+
+const handleReportModeChange = () => {
+    currentPage.value = 0
+    fetchData()
+}
+
 const getCourseName = (id) => {
     const course = allCourses.value.find(c => c.id === id)
     return course ? course.name : id
@@ -240,30 +270,77 @@ const fetchData = async () => {
   loading.value = true
   try {
     let gradesUrl = '/grades'
+    const filterParams = {}
+    
     if (userStore.role === 'STUDENT' && userStore.user?.id) {
         gradesUrl = `/grades/student/${userStore.user.id}`
+        filterParams.studentId = userStore.user.id
     } else if (userStore.role === 'TEACHER' && userStore.user?.id) {
         gradesUrl = `/grades/teacher/${userStore.user.id}`
+        filterParams.teacherId = userStore.user.id
     } else if (userStore.role === 'HEAD_TEACHER') {
         if (queryMode.value === 'my_class' && userStore.user?.className) {
              gradesUrl = `/grades/class/${userStore.user.className}`
+             filterParams.className = userStore.user.className
         } else if (userStore.user?.id) {
              gradesUrl = `/grades/teacher/${userStore.user.id}`
+             filterParams.teacherId = userStore.user.id
         }
     }
     
-    const [gradesRes, coursesRes, usersRes, termsRes] = await Promise.all([
-        request.get(gradesUrl),
+    const params = {}
+    if (termFilter.value) {
+        params.term = termFilter.value
+    }
+    if (courseFilter.value) {
+        params.courseId = courseFilter.value
+    }
+    if (classFilter.value && !(userStore.role === 'HEAD_TEACHER' && queryMode.value === 'my_class')) {
+        params.className = classFilter.value
+    }
+    if (studentFilter.value) {
+        params.studentName = studentFilter.value
+    }
+    
+    const [coursesRes, usersRes, filterTermsRes, filterCoursesRes, filterClassesRes] = await Promise.all([
         request.get('/courses'),
         request.get('/users'),
-        request.get('/terms/names').catch(() => [])
+        request.get('/grades/filter/terms', { params: filterParams }).catch(() => []),
+        request.get('/grades/filter/courses', { params: { ...filterParams, term: termFilter.value } }).catch(() => []),
+        userStore.role !== 'STUDENT' ? request.get('/grades/filter/classes', { params: { ...filterParams, term: termFilter.value } }).catch(() => []) : Promise.resolve([])
     ])
     
-    termOptionsFromAPI.value = termsRes || []
-    tableData.value = gradesRes
+    filterTermOptions.value = filterTermsRes || []
+    filterCourseOptions.value = filterCoursesRes || []
+    filterClassOptions.value = filterClassesRes || []
+    
     allCourses.value = coursesRes
     courses.value = coursesRes
-    students.value = usersRes
+    students.value = usersRes.filter(u => u.role === 'STUDENT')
+    
+    const allGradesRes = await request.get(gradesUrl, { params })
+    const allFilteredData = allGradesRes.content || allGradesRes
+    allReportData.value = allFilteredData
+    
+    if (isReportMode.value) {
+        tableData.value = allFilteredData
+        total.value = allFilteredData.length
+    } else {
+        const gradesRes = await request.get(gradesUrl, { 
+            params: { 
+                ...params, 
+                page: currentPage.value, 
+                size: pageSize.value 
+            } 
+        })
+        if (gradesRes && gradesRes.content !== undefined) {
+            tableData.value = gradesRes.content
+            total.value = gradesRes.totalElements
+        } else {
+            tableData.value = gradesRes
+            total.value = gradesRes.length
+        }
+    }
     
     updateChart()
   } finally {
@@ -335,7 +412,7 @@ const updateChart = () => {
     nextTick(() => {
         if (!myChart) myChart = echarts.init(chartRef.value)
         
-        const dataToAnalyze = filteredTableData.value
+        const dataToAnalyze = allReportData.value
         
         // 1. Bar Chart: Course Average
         const courseGroups = {}
@@ -441,8 +518,13 @@ const updateChart = () => {
     })
 }
 
-watch([termFilter, courseFilter], () => {
-    updateChart()
+watch([termFilter, courseFilter, classFilter, studentFilter], () => {
+    currentPage.value = 0
+    fetchData()
+})
+
+watch(isReportMode, () => {
+    handleReportModeChange()
 })
 
 const handleResize = () => {
@@ -537,5 +619,11 @@ onUnmounted(() => {
     flex: 1;
     min-width: 400px;
     height: 400px;
+}
+
+.pagination-container {
+    margin-top: 20px;
+    display: flex;
+    justify-content: flex-end;
 }
 </style>
