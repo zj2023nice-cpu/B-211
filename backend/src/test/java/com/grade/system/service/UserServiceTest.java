@@ -15,6 +15,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.util.Arrays;
@@ -350,5 +351,284 @@ class UserServiceTest {
 
         assertEquals("用户不存在", exception.getMessage());
         verify(userRepository, times(1)).findById(1L);
+    }
+
+    @Test
+    @DisplayName("测试登录 - $2b$前缀BCrypt密码成功")
+    void testLogin_2bBCryptPassword_Success() {
+        User userWith2bHash = new User();
+        userWith2bHash.setId(3L);
+        userWith2bHash.setUsername("user2b");
+        userWith2bHash.setPassword("$2b$10$hashedPassword");
+        userWith2bHash.setRole("ADMIN");
+        userWith2bHash.setName("2b用户");
+
+        LoginRequest request = new LoginRequest();
+        request.setUsername("user2b");
+        request.setPassword("123456");
+
+        when(userRepository.findByUsername("user2b")).thenReturn(Optional.of(userWith2bHash));
+        when(passwordEncoder.matches("123456", "$2b$10$hashedPassword")).thenReturn(true);
+
+        LoginResponse result = userService.login(request);
+
+        assertNotNull(result);
+        assertEquals(3L, result.getId());
+        assertEquals("user2b", result.getUsername());
+        assertEquals("ADMIN", result.getRole());
+        verify(passwordEncoder, times(1)).matches("123456", "$2b$10$hashedPassword");
+        verify(userRepository, never()).save(any(User.class));
+    }
+
+    @Test
+    @DisplayName("测试登录 - $2y$前缀BCrypt密码成功")
+    void testLogin_2yBCryptPassword_Success() {
+        User userWith2yHash = new User();
+        userWith2yHash.setId(4L);
+        userWith2yHash.setUsername("user2y");
+        userWith2yHash.setPassword("$2y$10$hashedPassword");
+        userWith2yHash.setRole("STUDENT");
+        userWith2yHash.setName("2y用户");
+
+        LoginRequest request = new LoginRequest();
+        request.setUsername("user2y");
+        request.setPassword("123456");
+
+        when(userRepository.findByUsername("user2y")).thenReturn(Optional.of(userWith2yHash));
+        when(passwordEncoder.matches("123456", "$2y$10$hashedPassword")).thenReturn(true);
+
+        LoginResponse result = userService.login(request);
+
+        assertNotNull(result);
+        assertEquals(4L, result.getId());
+        assertEquals("user2y", result.getUsername());
+        assertEquals("STUDENT", result.getRole());
+        verify(passwordEncoder, times(1)).matches("123456", "$2y$10$hashedPassword");
+        verify(userRepository, never()).save(any(User.class));
+    }
+
+    @Test
+    @DisplayName("测试登录 - 明文密码迁移后密码确实被更新")
+    void testLogin_PlainPassword_PasswordIsUpdated() {
+        LoginRequest request = new LoginRequest();
+        request.setUsername("student1");
+        request.setPassword("123456");
+
+        when(userRepository.findByUsername("student1")).thenReturn(Optional.of(testStudent));
+        when(passwordEncoder.encode("123456")).thenReturn("$2a$10$newHashedPassword");
+        when(userRepository.save(any(User.class))).thenAnswer(invocation -> {
+            User savedUser = invocation.getArgument(0);
+            assertEquals("$2a$10$newHashedPassword", savedUser.getPassword());
+            return savedUser;
+        });
+
+        LoginResponse result = userService.login(request);
+
+        assertNotNull(result);
+        verify(userRepository, times(1)).save(any(User.class));
+    }
+
+    @Test
+    @DisplayName("测试修改密码 - 旧密码为明文时验证成功并更新为BCrypt")
+    void testChangePassword_OldPlainPassword_Success() {
+        testStudent.setPassword("oldpass");
+        when(userRepository.findById(1L)).thenReturn(Optional.of(testStudent));
+        when(passwordEncoder.encode("newpass123")).thenReturn("$2a$10$newEncodedPassword");
+
+        boolean result = userService.changePassword(1L, "oldpass", "newpass123");
+
+        assertTrue(result);
+        assertEquals("$2a$10$newEncodedPassword", testStudent.getPassword());
+        verify(passwordEncoder, never()).matches(anyString(), anyString());
+        verify(passwordEncoder, times(1)).encode("newpass123");
+        verify(userRepository, times(1)).save(testStudent);
+    }
+
+    @Test
+    @DisplayName("测试修改密码 - 旧密码为明文时验证失败")
+    void testChangePassword_OldPlainPassword_WrongPassword() {
+        testStudent.setPassword("oldpass");
+        when(userRepository.findById(1L)).thenReturn(Optional.of(testStudent));
+
+        boolean result = userService.changePassword(1L, "wrongpass", "newpass123");
+
+        assertFalse(result);
+        assertEquals("oldpass", testStudent.getPassword());
+        verify(passwordEncoder, never()).matches(anyString(), anyString());
+        verify(passwordEncoder, never()).encode(anyString());
+        verify(userRepository, never()).save(any(User.class));
+    }
+
+    @Test
+    @DisplayName("测试导入CSV用户 - 成功导入")
+    void testImportUsersFromCsv_Success() throws Exception {
+        String csvContent = "用户名,姓名,角色,班级,联系方式\n" +
+                "newuser1,新用户1,STUDENT,计算机1班,13800138001\n" +
+                "newuser2,新用户2,TEACHER,,13800138002";
+
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "users.csv", "text/csv", csvContent.getBytes());
+
+        when(userRepository.findByUsername("newuser1")).thenReturn(Optional.empty());
+        when(userRepository.findByUsername("newuser2")).thenReturn(Optional.empty());
+        when(passwordEncoder.encode("123456")).thenReturn("$2a$10$defaultEncoded");
+        when(userRepository.saveAll(anyList())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        com.grade.system.dto.UserImportResult result = userService.importUsersFromCsv(file);
+
+        assertEquals(2, result.getTotal());
+        assertEquals(2, result.getSuccessCount());
+        assertEquals(0, result.getFailCount());
+        assertTrue(result.getErrors().isEmpty());
+        verify(userRepository, times(1)).saveAll(anyList());
+    }
+
+    @Test
+    @DisplayName("测试导入CSV用户 - 空文件")
+    void testImportUsersFromCsv_EmptyFile() throws Exception {
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "users.csv", "text/csv", new byte[0]);
+
+        com.grade.system.dto.UserImportResult result = userService.importUsersFromCsv(file);
+
+        assertEquals(0, result.getTotal());
+        assertEquals(0, result.getSuccessCount());
+        assertEquals(0, result.getFailCount());
+        assertFalse(result.getErrors().isEmpty());
+        assertEquals("CSV文件为空", result.getErrors().get(0).getErrorMessage());
+    }
+
+    @Test
+    @DisplayName("测试导入CSV用户 - 用户名已存在")
+    void testImportUsersFromCsv_UsernameExists() throws Exception {
+        String csvContent = "用户名,姓名,角色,班级,联系方式\n" +
+                "student1,张三,STUDENT,计算机1班,13800138001";
+
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "users.csv", "text/csv", csvContent.getBytes());
+
+        when(userRepository.findByUsername("student1")).thenReturn(Optional.of(testStudent));
+
+        com.grade.system.dto.UserImportResult result = userService.importUsersFromCsv(file);
+
+        assertEquals(1, result.getTotal());
+        assertEquals(0, result.getSuccessCount());
+        assertEquals(1, result.getFailCount());
+        assertEquals("用户名已存在", result.getErrors().get(0).getErrorMessage());
+        verify(userRepository, never()).saveAll(anyList());
+    }
+
+    @Test
+    @DisplayName("测试导入CSV用户 - 文件内重复用户名")
+    void testImportUsersFromCsv_DuplicateUsernameInFile() throws Exception {
+        String csvContent = "用户名,姓名,角色,班级,联系方式\n" +
+                "user1,用户1,STUDENT,计算机1班,13800138001\n" +
+                "user1,用户2,STUDENT,计算机1班,13800138002";
+
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "users.csv", "text/csv", csvContent.getBytes());
+
+        when(userRepository.findByUsername("user1")).thenReturn(Optional.empty());
+        when(passwordEncoder.encode("123456")).thenReturn("$2a$10$defaultEncoded");
+        when(userRepository.saveAll(anyList())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        com.grade.system.dto.UserImportResult result = userService.importUsersFromCsv(file);
+
+        assertEquals(2, result.getTotal());
+        assertEquals(1, result.getSuccessCount());
+        assertEquals(1, result.getFailCount());
+        assertEquals("文件中存在重复的用户名", result.getErrors().get(0).getErrorMessage());
+    }
+
+    @Test
+    @DisplayName("测试导入CSV用户 - 无效角色")
+    void testImportUsersFromCsv_InvalidRole() throws Exception {
+        String csvContent = "用户名,姓名,角色,班级,联系方式\n" +
+                "baduser,坏用户,INVALID_ROLE,计算机1班,13800138001";
+
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "users.csv", "text/csv", csvContent.getBytes());
+
+        com.grade.system.dto.UserImportResult result = userService.importUsersFromCsv(file);
+
+        assertEquals(1, result.getTotal());
+        assertEquals(0, result.getSuccessCount());
+        assertEquals(1, result.getFailCount());
+        assertTrue(result.getErrors().get(0).getErrorMessage().contains("角色非法"));
+    }
+
+    @Test
+    @DisplayName("测试导入CSV用户 - 学生角色缺少班级")
+    void testImportUsersFromCsv_StudentMissingClass() throws Exception {
+        String csvContent = "用户名,姓名,角色,班级,联系方式\n" +
+                "studentx,学生X,STUDENT,,13800138001";
+
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "users.csv", "text/csv", csvContent.getBytes());
+
+        com.grade.system.dto.UserImportResult result = userService.importUsersFromCsv(file);
+
+        assertEquals(1, result.getTotal());
+        assertEquals(0, result.getSuccessCount());
+        assertEquals(1, result.getFailCount());
+        assertTrue(result.getErrors().get(0).getErrorMessage().contains("班级字段不能为空"));
+    }
+
+    @Test
+    @DisplayName("测试导入CSV用户 - 行数据不完整")
+    void testImportUsersFromCsv_IncompleteRow() throws Exception {
+        String csvContent = "用户名,姓名,角色,班级,联系方式\n" +
+                "partial,只填了用户名";
+
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "users.csv", "text/csv", csvContent.getBytes());
+
+        com.grade.system.dto.UserImportResult result = userService.importUsersFromCsv(file);
+
+        assertEquals(1, result.getTotal());
+        assertEquals(0, result.getSuccessCount());
+        assertEquals(1, result.getFailCount());
+        assertTrue(result.getErrors().get(0).getErrorMessage().contains("行数据不完整"));
+    }
+
+    @Test
+    @DisplayName("测试导入CSV用户 - 空用户名")
+    void testImportUsersFromCsv_EmptyUsername() throws Exception {
+        String csvContent = "用户名,姓名,角色,班级,联系方式\n" +
+                ",张三,STUDENT,计算机1班,13800138001";
+
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "users.csv", "text/csv", csvContent.getBytes());
+
+        com.grade.system.dto.UserImportResult result = userService.importUsersFromCsv(file);
+
+        assertEquals(1, result.getTotal());
+        assertEquals(0, result.getSuccessCount());
+        assertEquals(1, result.getFailCount());
+        assertEquals("用户名不能为空", result.getErrors().get(0).getErrorMessage());
+    }
+
+    @Test
+    @DisplayName("测试导入CSV用户 - 混合成功与失败")
+    void testImportUsersFromCsv_MixedSuccessAndFailure() throws Exception {
+        String csvContent = "用户名,姓名,角色,班级,联系方式\n" +
+                "gooduser,好用户,STUDENT,计算机1班,13800138001\n" +
+                "badrole,坏角色,INVALID,计算机1班,13800138002\n" +
+                "gooduser2,好用户2,TEACHER,,13800138003";
+
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "users.csv", "text/csv", csvContent.getBytes());
+
+        when(userRepository.findByUsername("gooduser")).thenReturn(Optional.empty());
+        when(userRepository.findByUsername("gooduser2")).thenReturn(Optional.empty());
+        when(passwordEncoder.encode("123456")).thenReturn("$2a$10$defaultEncoded");
+        when(userRepository.saveAll(anyList())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        com.grade.system.dto.UserImportResult result = userService.importUsersFromCsv(file);
+
+        assertEquals(3, result.getTotal());
+        assertEquals(2, result.getSuccessCount());
+        assertEquals(1, result.getFailCount());
+        assertEquals(1, result.getErrors().size());
     }
 }
