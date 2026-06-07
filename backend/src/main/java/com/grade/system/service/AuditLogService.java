@@ -16,12 +16,17 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
+import java.io.ByteArrayOutputStream;
+import java.io.OutputStreamWriter;
+import java.io.PrintWriter;
 import java.lang.reflect.Method;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @Service
@@ -69,6 +74,77 @@ public class AuditLogService {
         response.setFirst(auditLogPage.isFirst());
         response.setLast(auditLogPage.isLast());
         return response;
+    }
+
+    public byte[] exportAuditLogsToCsv(
+            String username,
+            String module,
+            String action,
+            Boolean status,
+            String startDate,
+            String endDate) {
+        
+        LocalDateTime startTime = null;
+        LocalDateTime endTime = null;
+        
+        if (startDate != null && !startDate.isEmpty()) {
+            startTime = LocalDate.parse(startDate, DATE_FORMATTER).atStartOfDay();
+        }
+        if (endDate != null && !endDate.isEmpty()) {
+            endTime = LocalDate.parse(endDate, DATE_FORMATTER).atTime(LocalTime.MAX);
+        }
+        
+        List<AuditLog> auditLogs = auditLogRepository.findByConditionsWithoutPage(
+                username, module, action, status, startTime, endTime);
+        
+        DateTimeFormatter csvFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+        
+        try (ByteArrayOutputStream baos = new ByteArrayOutputStream();
+             PrintWriter writer = new PrintWriter(new OutputStreamWriter(baos, StandardCharsets.UTF_8))) {
+            
+            writer.print('\ufeff');
+            
+            writer.println("操作时间,用户名,角色,模块,操作,请求方法,请求路径,状态,错误信息");
+            
+            for (AuditLog log : auditLogs) {
+                String createdAt = log.getCreatedAt() != null ? log.getCreatedAt().format(csvFormatter) : "";
+                String logUsername = escapeCsv(log.getUsername());
+                String userRole = escapeCsv(getRoleName(log.getUserRole()));
+                String logModule = escapeCsv(log.getModule());
+                String logAction = escapeCsv(log.getAction());
+                String requestMethod = escapeCsv(log.getRequestMethod());
+                String requestPath = escapeCsv(log.getRequestPath());
+                String logStatus = log.getStatus() != null && log.getStatus() ? "成功" : "失败";
+                String errorMessage = escapeCsv(log.getErrorMessage());
+                
+                writer.println(String.format("%s,%s,%s,%s,%s,%s,%s,%s,%s",
+                        createdAt, logUsername, userRole, logModule, logAction,
+                        requestMethod, requestPath, logStatus, errorMessage));
+            }
+            
+            writer.flush();
+            return baos.toByteArray();
+        } catch (Exception e) {
+            throw new RuntimeException("导出CSV失败", e);
+        }
+    }
+
+    private String getRoleName(String role) {
+        if (role == null) return "";
+        Map<String, String> map = new HashMap<>();
+        map.put("ADMIN", "管理员");
+        map.put("TEACHER", "教师");
+        map.put("HEAD_TEACHER", "班主任");
+        map.put("STUDENT", "学生");
+        return map.getOrDefault(role, role);
+    }
+
+    private String escapeCsv(String value) {
+        if (value == null) return "";
+        if (value.contains(",") || value.contains("\"") || value.contains("\n")) {
+            return "\"" + value.replace("\"", "\"\"") + "\"";
+        }
+        return value;
     }
 
     public void saveAuditLog(AuditLog auditLog) {

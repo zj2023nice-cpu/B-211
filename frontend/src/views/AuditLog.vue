@@ -7,6 +7,7 @@
             <span>审计日志</span>
           </div>
           <div class="header-right">
+            <el-button type="success" @click="handleExport" :icon="Download" :loading="exporting">导出</el-button>
             <el-button type="primary" @click="handleSearch" :icon="Search">查询</el-button>
             <el-button @click="handleReset" :icon="Refresh">重置</el-button>
           </div>
@@ -167,9 +168,11 @@
 import { ref, onMounted, reactive, computed } from 'vue'
 import request from '@/utils/request'
 import { ElMessage } from 'element-plus'
-import { Search, Refresh } from '@element-plus/icons-vue'
+import { Search, Refresh, Download } from '@element-plus/icons-vue'
+import axios from 'axios'
 
 const loading = ref(false)
+const exporting = ref(false)
 const tableData = ref([])
 const detailVisible = ref(false)
 const currentDetail = ref(null)
@@ -320,6 +323,75 @@ const handleReset = () => {
   searchForm.dateRange = []
   currentPage.value = 0
   fetchData()
+}
+
+const handleExport = async () => {
+  exporting.value = true
+  try {
+    const params = {}
+    
+    if (searchForm.username) {
+      params.username = searchForm.username
+    }
+    if (searchForm.module) {
+      params.module = searchForm.module
+    }
+    if (searchForm.action) {
+      params.action = searchForm.action
+    }
+    if (searchForm.status !== null) {
+      params.status = searchForm.status
+    }
+    if (searchForm.dateRange && searchForm.dateRange.length === 2) {
+      params.startDate = searchForm.dateRange[0]
+      params.endDate = searchForm.dateRange[1]
+    }
+
+    const userStr = localStorage.getItem('user')
+    const headers = {}
+    if (userStr) {
+      try {
+        const user = JSON.parse(userStr)
+        if (user.id) headers['X-User-Id'] = user.id
+        if (user.username) headers['X-Username'] = user.username
+        if (user.role) headers['X-User-Role'] = user.role
+      } catch (e) {}
+    }
+
+    const response = await axios.get('/api/audit-logs/export', {
+      params,
+      headers,
+      responseType: 'blob'
+    })
+
+    const blob = new Blob([response.data], { type: 'text/csv;charset=utf-8;' })
+    const link = document.createElement('a')
+    const url = URL.createObjectURL(blob)
+    
+    const disposition = response.headers['content-disposition']
+    let fileName = 'audit_logs.csv'
+    if (disposition) {
+      const matches = disposition.match(/filename="?([^"]+)"?/)
+      if (matches && matches[1]) {
+        fileName = matches[1]
+      }
+    }
+    
+    link.setAttribute('href', url)
+    link.setAttribute('download', fileName)
+    link.style.visibility = 'hidden'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+    
+    ElMessage.success('导出成功')
+  } catch (error) {
+    console.error('导出失败:', error)
+    ElMessage.error('导出失败，请稍后重试')
+  } finally {
+    exporting.value = false
+  }
 }
 
 const handleViewDetail = (row) => {

@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
     
@@ -40,4 +41,20 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
             @Param("startTime") LocalDateTime startTime,
             @Param("endTime") LocalDateTime endTime,
             Pageable pageable);
+
+    @Query("SELECT a FROM AuditLog a WHERE " +
+           "(:username IS NULL OR LOWER(a.username) LIKE LOWER(CONCAT('%', :username, '%'))) AND " +
+           "(:module IS NULL OR a.module = :module) AND " +
+           "(:action IS NULL OR a.action = :action) AND " +
+           "(:status IS NULL OR a.status = :status) AND " +
+           "(:startTime IS NULL OR a.createdAt >= :startTime) AND " +
+           "(:endTime IS NULL OR a.createdAt <= :endTime) " +
+           "ORDER BY a.createdAt DESC")
+    List<AuditLog> findByConditionsWithoutPage(
+            @Param("username") String username,
+            @Param("module") String module,
+            @Param("action") String action,
+            @Param("status") Boolean status,
+            @Param("startTime") LocalDateTime startTime,
+            @Param("endTime") LocalDateTime endTime);
 }
