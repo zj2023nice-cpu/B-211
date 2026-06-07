@@ -40,7 +40,7 @@
         </el-table-column>
         <el-table-column prop="createdAt" label="创建时间" align="center" sortable width="180">
           <template #default="scope">
-            {{ formatDate(scope.row.createdAt) }}
+            {{ formatDateTimeWithoutSecond(scope.row.createdAt) }}
           </template>
         </el-table-column>
         <el-table-column label="操作" width="200" align="center">
@@ -105,9 +105,11 @@
 </template>
 
 <script setup>
-import { ref, onMounted, reactive, computed, watch } from 'vue'
+import { ref, onMounted, reactive, watch } from 'vue'
 import request from '@/utils/request'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { usePagination } from '@/composables/usePagination'
+import { formatDateTimeWithoutSecond } from '@/utils/format'
 
 const loading = ref(false)
 const tableData = ref([])
@@ -118,16 +120,7 @@ const formRef = ref(null)
 const filterName = ref('')
 const filterEnabled = ref(null)
 
-const currentPage = ref(0)
-const pageSize = ref(10)
-const total = ref(0)
-
-const currentPageForDisplay = computed({
-  get: () => currentPage.value + 1,
-  set: (val) => {
-    currentPage.value = val - 1
-  }
-})
+const { currentPage, pageSize, total, currentPageForDisplay, resetPage } = usePagination(10)
 
 const form = reactive({
   id: null,
@@ -142,18 +135,6 @@ const rules = {
   name: [
     { required: true, message: '请输入学期名称', trigger: 'blur' }
   ]
-}
-
-const formatDate = (dateStr) => {
-  if (!dateStr) return '-'
-  const date = new Date(dateStr)
-  return date.toLocaleString('zh-CN', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit'
-  })
 }
 
 const fetchData = async () => {
@@ -184,18 +165,18 @@ const fetchData = async () => {
 }
 
 const handlePageChange = (val) => {
-  currentPage.value = val - 1
+  currentPageForDisplay.value = val
   fetchData()
 }
 
 const handleSizeChange = (val) => {
   pageSize.value = val
-  currentPage.value = 0
+  resetPage()
   fetchData()
 }
 
 watch([filterName, filterEnabled], () => {
-  currentPage.value = 0
+  resetPage()
   fetchData()
 })
 

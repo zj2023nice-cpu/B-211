@@ -115,11 +115,12 @@
 </template>
 
 <script setup>
-import { ref, onMounted, reactive, computed } from 'vue'
+import { ref, onMounted, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import request from '@/utils/request'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Guide, Search, RefreshRight } from '@element-plus/icons-vue'
+import { usePagination } from '@/composables/usePagination'
 
 const router = useRouter()
 
@@ -130,20 +131,11 @@ const dialogVisible = ref(false)
 const dialogTitle = ref('')
 const courseFormRef = ref(null)
 
-const currentPage = ref(0)
-const pageSize = ref(10)
-const total = ref(0)
+const { currentPage, pageSize, total, currentPageForDisplay, resetPage } = usePagination(10)
 
 const searchForm = reactive({
   name: '',
   teacherId: null
-})
-
-const currentPageForDisplay = computed({
-  get: () => currentPage.value + 1,
-  set: (val) => {
-    currentPage.value = val - 1
-  }
 })
 
 const form = reactive({
@@ -202,25 +194,25 @@ const fetchData = async () => {
 }
 
 const handleSearch = () => {
-  currentPage.value = 0
+  resetPage()
   fetchData()
 }
 
 const handleReset = () => {
   searchForm.name = ''
   searchForm.teacherId = null
-  currentPage.value = 0
+  resetPage()
   fetchData()
 }
 
 const handlePageChange = (val) => {
-  currentPage.value = val - 1
+  currentPageForDisplay.value = val
   fetchData()
 }
 
 const handleSizeChange = (val) => {
   pageSize.value = val
-  currentPage.value = 0
+  resetPage()
   fetchData()
 }
 

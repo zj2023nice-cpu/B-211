@@ -133,6 +133,9 @@ import request from '@/utils/request'
 import { useUserStore } from '@/stores/user'
 import { Search, Download, DataAnalysis } from '@element-plus/icons-vue'
 import * as echarts from 'echarts'
+import { usePagination } from '@/composables/usePagination'
+import { getScoreClass } from '@/utils/format'
+import { exportCsv } from '@/utils/csv'
 
 const userStore = useUserStore()
 const loading = ref(false)
@@ -158,16 +161,7 @@ const filterTermOptions = ref([])
 const filterCourseOptions = ref([])
 const filterClassOptions = ref([])
 
-const currentPage = ref(0)
-const pageSize = ref(10)
-const total = ref(0)
-
-const currentPageForDisplay = computed({
-  get: () => currentPage.value + 1,
-  set: (val) => {
-    currentPage.value = val - 1
-  }
-})
+const { currentPage, pageSize, total, currentPageForDisplay, resetPage } = usePagination(10)
 
 const termOptions = computed(() => filterTermOptions.value)
 const courseOptions = computed(() => filterCourseOptions.value)
@@ -264,24 +258,24 @@ const reportData = computed(() => {
 })
 
 const handlePageChange = (val) => {
-    currentPage.value = val - 1
+    currentPageForDisplay.value = val
     fetchData()
 }
 
 const handleSizeChange = (val) => {
     pageSize.value = val
-    currentPage.value = 0
+    resetPage()
     fetchData()
 }
 
 const handleQueryModeChange = () => {
     classFilter.value = ''
-    currentPage.value = 0
+    resetPage()
     fetchData()
 }
 
 const handleReportModeChange = () => {
-    currentPage.value = 0
+    resetPage()
     fetchData()
 }
 
@@ -298,12 +292,6 @@ const getStudentName = (id) => {
 const getStudentClass = (id) => {
     const student = students.value.find(s => s.id === id)
     return student ? (student.className || '未知班级') : '-'
-}
-
-const getScoreClass = (score) => {
-    if (score < 60) return 'score-fail'
-    if (score >= 90) return 'score-excellent'
-    return ''
 }
 
 const buildFilterParams = () => {
@@ -429,16 +417,7 @@ const exportData = () => {
             return baseRow
         })
         
-        const csvContent = [
-            header.join(','),
-            ...data.map(row => row.map(cell => `"${cell}"`).join(','))
-        ].join('\n')
-        
-        const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' })
-        const link = document.createElement('a')
-        link.href = URL.createObjectURL(blob)
-        link.download = `综合成绩单_${new Date().toLocaleDateString()}.csv`
-        link.click()
+        exportCsv(header, data, `综合成绩单_${new Date().toLocaleDateString()}.csv`)
         return
     }
 
@@ -452,16 +431,7 @@ const exportData = () => {
         row.makeupScore || '-'
     ])
     
-    const csvContent = [
-        header.join(','),
-        ...data.map(row => row.map(cell => `"${cell}"`).join(','))
-    ].join('\n')
-    
-    const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' })
-    const link = document.createElement('a')
-    link.href = URL.createObjectURL(blob)
-    link.download = `成绩导出_${new Date().toLocaleDateString()}.csv`
-    link.click()
+    exportCsv(header, data, `成绩导出_${new Date().toLocaleDateString()}.csv`)
 }
 
 const updateChart = () => {
@@ -575,7 +545,7 @@ const updateChart = () => {
 }
 
 watch([termFilter, courseFilter, classFilter, studentFilter], () => {
-    currentPage.value = 0
+    resetPage()
     fetchData()
 })
 

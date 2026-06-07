@@ -118,6 +118,8 @@ import * as echarts from 'echarts'
 import { Bell, TrendCharts, Guide } from '@element-plus/icons-vue'
 import request from '@/utils/request'
 import { ElDialog } from 'element-plus'
+import { getRoleName } from '@/utils/role'
+import { formatDate, formatDateTime } from '@/utils/format'
 
 const router = useRouter()
 
@@ -134,13 +136,7 @@ const detailVisible = ref(false)
 const currentAnnouncement = ref(null)
 
 const roleName = computed(() => {
-  const map = {
-    'ADMIN': '管理员',
-    'TEACHER': '教师',
-    'HEAD_TEACHER': '班主任',
-    'STUDENT': '学生'
-  }
-  return map[userStore.user?.role] || userStore.user?.role
+  return getRoleName(userStore.user?.role)
 })
 
 const getTypeName = (type) => {
@@ -151,30 +147,6 @@ const getTypeName = (type) => {
 const getTypeTagType = (type) => {
   const map = { 'IMPORTANT': 'danger', 'NOTICE': 'primary', 'INFO': 'success' }
   return map[type] || 'info'
-}
-
-const formatDate = (dateStr) => {
-  if (!dateStr) return '-'
-  const date = new Date(dateStr)
-  if (isNaN(date.getTime())) return dateStr
-  return date.toLocaleDateString('zh-CN', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit'
-  })
-}
-
-const formatDateTime = (dateStr) => {
-  if (!dateStr) return '-'
-  const date = new Date(dateStr)
-  if (isNaN(date.getTime())) return dateStr
-  return date.toLocaleString('zh-CN', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit'
-  })
 }
 
 const fetchAnnouncements = async () => {

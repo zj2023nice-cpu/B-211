@@ -235,10 +235,12 @@
 </template>
 
 <script setup>
-import { ref, onMounted, reactive, computed, nextTick } from 'vue'
+import { ref, onMounted, reactive, nextTick } from 'vue'
 import request from '@/utils/request'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { User, Plus, Edit, Delete, School, Phone, Finished, Grid, Upload, Download, UploadFilled, Key, Search, RefreshRight } from '@element-plus/icons-vue'
+import { getRoleName, getRoleType, getRoleColor } from '@/utils/role'
+import { usePagination } from '@/composables/usePagination'
 
 const loading = ref(false)
 const tableData = ref([])
@@ -247,16 +249,7 @@ const dialogTitle = ref('')
 const viewMode = ref('table')
 const formRef = ref(null)
 
-const currentPage = ref(0)
-const pageSize = ref(10)
-const total = ref(0)
-
-const currentPageForDisplay = computed({
-  get: () => currentPage.value + 1,
-  set: (val) => {
-    currentPage.value = val - 1
-  }
-})
+const { currentPage, pageSize, total, currentPageForDisplay, resetPage } = usePagination(10)
 
 const filterForm = reactive({
   username: '',
@@ -320,27 +313,6 @@ const resetPasswordForm = reactive({
   newPassword: ''
 })
 
-const getRoleName = (role) => {
-    const map = { 'ADMIN': '管理员', 'TEACHER': '教师', 'HEAD_TEACHER': '班主任', 'STUDENT': '学生' }
-    return map[role] || role
-}
-
-const getRoleType = (role) => {
-    const map = { 'ADMIN': 'danger', 'TEACHER': 'warning', 'HEAD_TEACHER': 'primary', 'STUDENT': 'success' }
-    return map[role] || 'info'
-}
-
-const getRoleColor = (role) => {
-     const map = { 
-         'ADMIN': '#EF4444', // Red 500
-         'TEACHER': '#F59E0B', // Amber 500
-         'HEAD_TEACHER': '#4F46E5', // Indigo 600
-         'STUDENT': '#10B981' // Emerald 500
-     }
-     return map[role] || '#9CA3AF' // Gray 400
-}
-
-
 const fetchData = async () => {
   loading.value = true
   try {
@@ -367,7 +339,7 @@ const fetchData = async () => {
 }
 
 const handleSearch = () => {
-  currentPage.value = 0
+  resetPage()
   fetchData()
 }
 
@@ -376,7 +348,7 @@ const handleReset = () => {
   filterForm.name = ''
   filterForm.role = ''
   filterForm.className = ''
-  currentPage.value = 0
+  resetPage()
   fetchData()
 }
 
@@ -387,13 +359,13 @@ const handleRoleChange = () => {
 }
 
 const handlePageChange = (val) => {
-  currentPage.value = val - 1
+  currentPageForDisplay.value = val
   fetchData()
 }
 
 const handleSizeChange = (val) => {
   pageSize.value = val
-  currentPage.value = 0
+  resetPage()
   fetchData()
 }
 

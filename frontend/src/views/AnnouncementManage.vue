@@ -152,23 +152,24 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import request from '@/utils/request'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Search, Refresh } from '@element-plus/icons-vue'
+import { usePagination } from '@/composables/usePagination'
+import { formatDateTime } from '@/utils/format'
 
 const loading = ref(false)
 const submitting = ref(false)
 const tableData = ref([])
-const total = ref(0)
-const currentPage = ref(0)
-const pageSize = ref(10)
 const dialogVisible = ref(false)
 const viewDialogVisible = ref(false)
 const dialogTitle = ref('')
 const isEdit = ref(false)
 const formRef = ref(null)
 const currentView = ref(null)
+
+const { currentPage, pageSize, total, currentPageForDisplay, resetPage } = usePagination(10)
 
 const searchForm = reactive({
   title: '',
@@ -190,13 +191,6 @@ const rules = {
   type: [{ required: true, message: '请选择公告类型', trigger: 'change' }]
 }
 
-const currentPageForDisplay = computed({
-  get: () => currentPage.value + 1,
-  set: (val) => {
-    currentPage.value = val - 1
-  }
-})
-
 const getTypeName = (type) => {
   const map = { 'IMPORTANT': '重要', 'NOTICE': '通知', 'INFO': '消息' }
   return map[type] || type || '-'
@@ -205,20 +199,6 @@ const getTypeName = (type) => {
 const getTypeTagType = (type) => {
   const map = { 'IMPORTANT': 'danger', 'NOTICE': 'primary', 'INFO': 'success' }
   return map[type] || 'info'
-}
-
-const formatDateTime = (dateStr) => {
-  if (!dateStr) return '-'
-  const date = new Date(dateStr)
-  if (isNaN(date.getTime())) return dateStr
-  return date.toLocaleString('zh-CN', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit'
-  })
 }
 
 const fetchData = async () => {
@@ -254,18 +234,18 @@ const fetchData = async () => {
 }
 
 const handlePageChange = (val) => {
-  currentPage.value = val - 1
+  currentPageForDisplay.value = val
   fetchData()
 }
 
 const handleSizeChange = (val) => {
   pageSize.value = val
-  currentPage.value = 0
+  resetPage()
   fetchData()
 }
 
 const handleSearch = () => {
-  currentPage.value = 0
+  resetPage()
   fetchData()
 }
 
@@ -274,7 +254,7 @@ const handleReset = () => {
   searchForm.type = ''
   searchForm.status = null
   searchForm.dateRange = []
-  currentPage.value = 0
+  resetPage()
   fetchData()
 }
 

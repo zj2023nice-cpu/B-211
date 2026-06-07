@@ -165,11 +165,14 @@
 </template>
 
 <script setup>
-import { ref, onMounted, reactive, computed } from 'vue'
+import { ref, onMounted, reactive } from 'vue'
 import request from '@/utils/request'
 import { ElMessage } from 'element-plus'
 import { Search, Refresh, Download } from '@element-plus/icons-vue'
 import axios from 'axios'
+import { getRoleName, getRoleType } from '@/utils/role'
+import { usePagination } from '@/composables/usePagination'
+import { formatDateTime, formatJson } from '@/utils/format'
 
 const loading = ref(false)
 const exporting = ref(false)
@@ -177,9 +180,7 @@ const tableData = ref([])
 const detailVisible = ref(false)
 const currentDetail = ref(null)
 
-const currentPage = ref(0)
-const pageSize = ref(10)
-const total = ref(0)
+const { currentPage, pageSize, total, currentPageForDisplay, resetPage } = usePagination(10)
 
 const searchForm = reactive({
   username: '',
@@ -204,23 +205,6 @@ const actionOptions = [
   { label: '导入', value: '导入' }
 ]
 
-const currentPageForDisplay = computed({
-  get: () => currentPage.value + 1,
-  set: (val) => {
-    currentPage.value = val - 1
-  }
-})
-
-const getRoleName = (role) => {
-  const map = { 'ADMIN': '管理员', 'TEACHER': '教师', 'HEAD_TEACHER': '班主任', 'STUDENT': '学生' }
-  return map[role] || role || '-'
-}
-
-const getRoleType = (role) => {
-  const map = { 'ADMIN': 'danger', 'TEACHER': 'warning', 'HEAD_TEACHER': 'primary', 'STUDENT': 'success' }
-  return map[role] || 'info'
-}
-
 const getActionType = (action) => {
   const map = { 
     '登录': 'primary', 
@@ -235,30 +219,6 @@ const getActionType = (action) => {
 const getRequestMethodType = (method) => {
   const map = { 'GET': 'info', 'POST': 'success', 'PUT': 'warning', 'DELETE': 'danger' }
   return map[method] || ''
-}
-
-const formatDateTime = (dateStr) => {
-  if (!dateStr) return '-'
-  const date = new Date(dateStr)
-  if (isNaN(date.getTime())) return dateStr
-  return date.toLocaleString('zh-CN', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit'
-  })
-}
-
-const formatJson = (str) => {
-  if (!str) return ''
-  try {
-    const obj = JSON.parse(str)
-    return JSON.stringify(obj, null, 2)
-  } catch (e) {
-    return str
-  }
 }
 
 const fetchData = async () => {
@@ -300,18 +260,18 @@ const fetchData = async () => {
 }
 
 const handlePageChange = (val) => {
-  currentPage.value = val - 1
+  currentPageForDisplay.value = val
   fetchData()
 }
 
 const handleSizeChange = (val) => {
   pageSize.value = val
-  currentPage.value = 0
+  resetPage()
   fetchData()
 }
 
 const handleSearch = () => {
-  currentPage.value = 0
+  resetPage()
   fetchData()
 }
 
@@ -321,7 +281,7 @@ const handleReset = () => {
   searchForm.action = ''
   searchForm.status = null
   searchForm.dateRange = []
-  currentPage.value = 0
+  resetPage()
   fetchData()
 }
 

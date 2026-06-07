@@ -69,6 +69,7 @@
 import { ref, onMounted, reactive, computed, watch } from 'vue'
 import request from '@/utils/request'
 import { useUserStore } from '@/stores/user'
+import { usePagination } from '@/composables/usePagination'
 
 const userStore = useUserStore()
 const loading = ref(false)
@@ -82,20 +83,11 @@ const filterTerm = ref('')
 const filterCourse = ref('')
 const filterClass = ref('')
 
-const currentPage = ref(0)
-const pageSize = ref(10)
-const total = ref(0)
+const { currentPage, pageSize, total, currentPageForDisplay, resetPage } = usePagination(10)
 
 const failCount = ref(0)
 const borderlineCount = ref(0)
 const makeupPassCount = ref(0)
-
-const currentPageForDisplay = computed({
-  get: () => currentPage.value + 1,
-  set: (val) => {
-    currentPage.value = val - 1
-  }
-})
 
 const isHeadTeacher = computed(() => {
   return userStore.role === 'HEAD_TEACHER'
@@ -127,13 +119,13 @@ const classOptions = computed(() => {
 })
 
 const handlePageChange = (val) => {
-  currentPage.value = val - 1
+  currentPageForDisplay.value = val
   fetchData()
 }
 
 const handleSizeChange = (val) => {
   pageSize.value = val
-  currentPage.value = 0
+  resetPage()
   fetchData()
 }
 
@@ -248,7 +240,7 @@ const resetFilters = () => {
   if (!isHeadTeacher.value) {
     filterClass.value = ''
   }
-  currentPage.value = 0
+  resetPage()
   fetchData()
 }
 

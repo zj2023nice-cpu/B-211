@@ -228,6 +228,9 @@ import request from '@/utils/request'
 import { useUserStore } from '@/stores/user'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Upload } from '@element-plus/icons-vue'
+import { usePagination } from '@/composables/usePagination'
+import { getScoreClass } from '@/utils/format'
+import { exportCsv } from '@/utils/csv'
 
 const userStore = useUserStore()
 const loading = ref(false)
@@ -249,9 +252,7 @@ const isBatchMode = ref(false)
 const batchSaving = ref(false)
 const modifiedRows = ref(new Set())
 
-const currentPage = ref(0)
-const pageSize = ref(10)
-const total = ref(0)
+const { currentPage, pageSize, total, currentPageForDisplay, resetPage } = usePagination(10)
 const filterTermOptions = ref([])
 const filterCourseOptions = ref([])
 const filterClassOptions = ref([])
@@ -271,13 +272,6 @@ const importing = ref(false)
 const selectedFile = ref(null)
 const importResult = ref(null)
 const uploadRef = ref(null)
-
-const currentPageForDisplay = computed({
-  get: () => currentPage.value + 1,
-  set: (val) => {
-    currentPage.value = val - 1
-  }
-})
 
 const editableTermOptions = computed(() => enabledTermsFromAPI.value || [])
 
@@ -348,7 +342,7 @@ const handlePageChange = async (val) => {
         return
     }
     modifiedRows.value.clear()
-    currentPage.value = val - 1
+    currentPageForDisplay.value = val
     fetchData()
 }
 
@@ -365,7 +359,7 @@ const handleSizeChange = async (val) => {
     }
     modifiedRows.value.clear()
     pageSize.value = val
-    currentPage.value = 0
+    resetPage()
     fetchData()
 }
 
@@ -629,12 +623,6 @@ const handleSubmit = async () => {
   }
 }
 
-const getScoreClass = (score) => {
-    if (score < 60) return 'score-fail'
-    if (score >= 90) return 'score-excellent'
-    return ''
-}
-
 let suppressFilterWatch = false
 watch([filterTerm, filterCourse, filterClass, filterStudent], async () => {
     if (suppressFilterWatch) {
@@ -648,7 +636,7 @@ watch([filterTerm, filterCourse, filterClass, filterStudent], async () => {
         return
     }
     modifiedRows.value.clear()
-    currentPage.value = 0
+    resetPage()
     fetchData()
 })
 
@@ -749,17 +737,7 @@ const downloadTemplate = () => {
         [templateTerm, '大学英语', '王五', '计算机一班', '92', '-']
     ]
     
-    const csvContent = [
-        header.join(','),
-        ...exampleData.map(row => row.join(','))
-    ].join('\n')
-    
-    const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' })
-    const link = document.createElement('a')
-    link.href = URL.createObjectURL(blob)
-    link.download = `成绩导入模板.csv`
-    link.click()
-    
+    exportCsv(header, exampleData, `成绩导入模板.csv`)
     ElMessage.success('模板下载成功，请按照模板格式填写数据')
 }
 
