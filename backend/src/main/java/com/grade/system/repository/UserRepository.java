@@ -1,6 +1,8 @@
 package com.grade.system.repository;
 
 import com.grade.system.entity.User;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -20,4 +22,16 @@ public interface UserRepository extends JpaRepository<User, Long> {
     List<String> findDistinctClassNamesByStudentIds(@Param("studentIds") List<Long> studentIds);
 
     List<User> findByClassNameInAndRole(List<String> classNames, String role);
+
+    @Query("SELECT u FROM User u WHERE " +
+           "(:username IS NULL OR :username = '' OR u.username LIKE CONCAT('%', :username, '%')) AND " +
+           "(:name IS NULL OR :name = '' OR u.name LIKE CONCAT('%', :name, '%')) AND " +
+           "(:role IS NULL OR :role = '' OR u.role = :role) AND " +
+           "(:className IS NULL OR :className = '' OR u.className LIKE CONCAT('%', :className, '%'))")
+    Page<User> findByFilters(
+            @Param("username") String username,
+            @Param("name") String name,
+            @Param("role") String role,
+            @Param("className") String className,
+            Pageable pageable);
 }

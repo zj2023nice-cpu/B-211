@@ -17,6 +17,31 @@
           </div>
         </div>
       </template>
+
+      <!-- Filter Area -->
+      <el-form :inline="true" :model="filterForm" class="filter-form">
+        <el-form-item label="用户名">
+          <el-input v-model="filterForm.username" placeholder="请输入用户名" clearable style="width: 150px" />
+        </el-form-item>
+        <el-form-item label="姓名">
+          <el-input v-model="filterForm.name" placeholder="请输入姓名" clearable style="width: 150px" />
+        </el-form-item>
+        <el-form-item label="角色">
+          <el-select v-model="filterForm.role" placeholder="请选择角色" clearable style="width: 150px">
+            <el-option label="管理员" value="ADMIN" />
+            <el-option label="教师" value="TEACHER" />
+            <el-option label="班主任" value="HEAD_TEACHER" />
+            <el-option label="学生" value="STUDENT" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="班级">
+          <el-input v-model="filterForm.className" placeholder="请输入班级" clearable style="width: 180px" />
+        </el-form-item>
+        <el-form-item>
+          <el-button type="primary" :icon="Search" @click="handleSearch">查询</el-button>
+          <el-button :icon="RefreshRight" @click="handleReset">重置</el-button>
+        </el-form-item>
+      </el-form>
       
       <!-- Table View -->
       <el-table v-if="viewMode === 'table'" :data="tableData" style="width: 100%" v-loading="loading" border stripe>
@@ -90,28 +115,28 @@
     </div>
 
     <el-dialog v-model="dialogVisible" :title="dialogTitle" width="500px">
-      <el-form :model="form" label-width="80px" class="user-form">
-        <el-form-item label="用户名">
+      <el-form :model="form" :rules="formRules" ref="formRef" label-width="80px" class="user-form">
+        <el-form-item label="用户名" prop="username">
           <el-input v-model="form.username" :disabled="!!form.id" placeholder="请输入用户名" />
         </el-form-item>
-        <el-form-item label="密码">
+        <el-form-item label="密码" prop="password">
             <el-input v-model="form.password" placeholder="留空则不修改(新增时默认为123456)" show-password />
         </el-form-item>
-        <el-form-item label="角色">
-          <el-radio-group v-model="form.role" size="default">
+        <el-form-item label="角色" prop="role">
+          <el-radio-group v-model="form.role" size="default" @change="handleRoleChange">
             <el-radio-button label="ADMIN">管理员</el-radio-button>
             <el-radio-button label="TEACHER">教师</el-radio-button>
             <el-radio-button label="HEAD_TEACHER">班主任</el-radio-button>
             <el-radio-button label="STUDENT">学生</el-radio-button>
           </el-radio-group>
         </el-form-item>
-        <el-form-item label="姓名">
+        <el-form-item label="姓名" prop="name">
           <el-input v-model="form.name" placeholder="请输入真实姓名" />
         </el-form-item>
-        <el-form-item label="班级" v-if="['STUDENT', 'HEAD_TEACHER'].includes(form.role)">
+        <el-form-item label="班级" prop="className" v-if="['STUDENT', 'HEAD_TEACHER'].includes(form.role)">
           <el-input v-model="form.className" placeholder="例如: 计算机2023-1班" />
         </el-form-item>
-        <el-form-item label="联系方式">
+        <el-form-item label="联系方式" prop="contact">
           <el-input v-model="form.contact" placeholder="手机号或邮箱" />
         </el-form-item>
       </el-form>
@@ -210,16 +235,17 @@
 </template>
 
 <script setup>
-import { ref, onMounted, reactive, computed } from 'vue'
+import { ref, onMounted, reactive, computed, nextTick } from 'vue'
 import request from '@/utils/request'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { User, Plus, Edit, Delete, School, Phone, Finished, Grid, Upload, Download, UploadFilled, Key } from '@element-plus/icons-vue'
+import { User, Plus, Edit, Delete, School, Phone, Finished, Grid, Upload, Download, UploadFilled, Key, Search, RefreshRight } from '@element-plus/icons-vue'
 
 const loading = ref(false)
 const tableData = ref([])
 const dialogVisible = ref(false)
 const dialogTitle = ref('')
 const viewMode = ref('table')
+const formRef = ref(null)
 
 const currentPage = ref(0)
 const pageSize = ref(10)
@@ -231,6 +257,40 @@ const currentPageForDisplay = computed({
     currentPage.value = val - 1
   }
 })
+
+const filterForm = reactive({
+  username: '',
+  name: '',
+  role: '',
+  className: ''
+})
+
+const validateClassName = (rule, value, callback) => {
+  if (['STUDENT', 'HEAD_TEACHER'].includes(form.role)) {
+    if (!value || !value.trim()) {
+      callback(new Error('请输入班级'))
+    } else {
+      callback()
+    }
+  } else {
+    callback()
+  }
+}
+
+const formRules = {
+  username: [
+    { required: true, message: '请输入用户名', trigger: 'blur' }
+  ],
+  name: [
+    { required: true, message: '请输入姓名', trigger: 'blur' }
+  ],
+  role: [
+    { required: true, message: '请选择角色', trigger: 'change' }
+  ],
+  className: [
+    { validator: validateClassName, trigger: 'blur' }
+  ]
+}
 
 const form = reactive({
   id: null,
@@ -282,12 +342,16 @@ const getRoleColor = (role) => {
 const fetchData = async () => {
   loading.value = true
   try {
-    const res = await request.get('/users', {
-      params: {
-        page: currentPage.value,
-        size: pageSize.value
-      }
-    })
+    const params = {
+      page: currentPage.value,
+      size: pageSize.value
+    }
+    if (filterForm.username) params.username = filterForm.username
+    if (filterForm.name) params.name = filterForm.name
+    if (filterForm.role) params.role = filterForm.role
+    if (filterForm.className) params.className = filterForm.className
+
+    const res = await request.get('/users', { params })
     if (res && res.content !== undefined) {
       tableData.value = res.content
       total.value = res.totalElements
@@ -297,6 +361,26 @@ const fetchData = async () => {
     }
   } finally {
     loading.value = false
+  }
+}
+
+const handleSearch = () => {
+  currentPage.value = 0
+  fetchData()
+}
+
+const handleReset = () => {
+  filterForm.username = ''
+  filterForm.name = ''
+  filterForm.role = ''
+  filterForm.className = ''
+  currentPage.value = 0
+  fetchData()
+}
+
+const handleRoleChange = () => {
+  if (formRef.value) {
+    formRef.value.validateField('className')
   }
 }
 
@@ -322,12 +406,20 @@ const handleAdd = () => {
     className: '',
     contact: ''
   })
+  if (formRef.value) {
+    formRef.value.resetFields()
+  }
   dialogVisible.value = true
 }
 
 const handleEdit = (row) => {
   dialogTitle.value = '编辑用户'
   Object.assign(form, { ...row, password: '' })
+  if (formRef.value) {
+    nextTick(() => {
+      formRef.value.clearValidate()
+    })
+  }
   dialogVisible.value = true
 }
 
@@ -368,19 +460,24 @@ const handleResetPasswordSubmit = async () => {
 }
 
 const handleSubmit = async () => {
-  try {
-    if (form.id) {
-      await request.put(`/users/${form.id}`, form)
-      ElMessage.success('修改成功')
-    } else {
-      await request.post('/users', form)
-      ElMessage.success('新增成功')
+  if (!formRef.value) return
+  await formRef.value.validate(async (valid) => {
+    if (valid) {
+      try {
+        if (form.id) {
+          await request.put(`/users/${form.id}`, form)
+          ElMessage.success('修改成功')
+        } else {
+          await request.post('/users', form)
+          ElMessage.success('新增成功')
+        }
+        dialogVisible.value = false
+        fetchData()
+      } catch (error) {
+        // Error handled
+      }
     }
-    dialogVisible.value = false
-    fetchData()
-  } catch (error) {
-    // Error handled
-  }
+  })
 }
 
 const handleDownloadTemplate = () => {
@@ -530,5 +627,15 @@ onMounted(() => {
 
 .upload-demo {
     margin-bottom: 20px;
+}
+
+.filter-form {
+    margin-bottom: 20px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--bg-color);
+}
+
+.filter-form .el-form-item {
+    margin-bottom: 10px;
 }
 </style>

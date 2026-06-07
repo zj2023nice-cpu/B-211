@@ -28,9 +28,13 @@ public class UserController {
     @GetMapping
     public ApiResponse<?> getAllUsers(
             @RequestParam(required = false) Integer page,
-            @RequestParam(required = false) Integer size) {
+            @RequestParam(required = false) Integer size,
+            @RequestParam(required = false) String username,
+            @RequestParam(required = false) String name,
+            @RequestParam(required = false) String role,
+            @RequestParam(required = false) String className) {
         if (page != null && size != null) {
-            PageResponse<User> userPage = userService.getUsersPage(page, size);
+            PageResponse<User> userPage = userService.getUsersPageWithFilters(page, size, username, name, role, className);
             return ApiResponse.success(userPage);
         } else {
             List<User> users = userService.getAllUsers();

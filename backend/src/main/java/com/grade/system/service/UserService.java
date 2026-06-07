@@ -81,8 +81,12 @@ public class UserService {
     }
 
     public PageResponse<User> getUsersPage(int page, int size) {
+        return getUsersPageWithFilters(page, size, null, null, null, null);
+    }
+
+    public PageResponse<User> getUsersPageWithFilters(int page, int size, String username, String name, String role, String className) {
         Pageable pageable = PageRequest.of(page, size, Sort.by("id").descending());
-        Page<User> userPage = userRepository.findAll(pageable);
+        Page<User> userPage = userRepository.findByFilters(username, name, role, className, pageable);
         
         PageResponse<User> response = new PageResponse<>();
         response.setContent(userPage.getContent());
