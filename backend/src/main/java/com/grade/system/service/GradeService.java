@@ -517,26 +517,14 @@ public class GradeService {
             }
 
             List<CourseClass> courseClasses = courseClassRepository.findByCourseId(courseId);
-            if (!courseClasses.isEmpty()) {
-                List<String> classNames = courseClasses.stream()
-                        .map(CourseClass::getClassName)
-                        .collect(Collectors.toList());
-                return userRepository.findByClassNameInAndRole(classNames, "STUDENT");
+            if (courseClasses.isEmpty()) {
+                return new ArrayList<>();
             }
 
-            List<Grade> courseGrades = gradeRepository.findByCourseId(courseId);
-            if (!courseGrades.isEmpty()) {
-                List<Long> studentIds = courseGrades.stream()
-                        .map(Grade::getStudentId)
-                        .distinct()
-                        .collect(Collectors.toList());
-                List<String> classNames = userRepository.findDistinctClassNamesByStudentIds(studentIds);
-                if (!classNames.isEmpty()) {
-                    return userRepository.findByClassNameInAndRole(classNames, "STUDENT");
-                }
-            }
-
-            return userRepository.findByRole("STUDENT");
+            List<String> classNames = courseClasses.stream()
+                    .map(CourseClass::getClassName)
+                    .collect(Collectors.toList());
+            return userRepository.findByClassNameInAndRole(classNames, "STUDENT");
         }
 
         return new ArrayList<>();
@@ -562,13 +550,22 @@ public class GradeService {
             if (!currentUser.getId().equals(course.getTeacherId())) {
                 throw new BusinessException("您无权操作该课程的成绩");
             }
+
+            List<CourseClass> courseClasses = courseClassRepository.findByCourseId(courseId);
+            if (courseClasses.isEmpty()) {
+                throw new BusinessException("该课程尚未配置授课班级范围，请先联系管理员配置后再录入成绩");
+            }
+
             if (studentId != null) {
-                List<User> availableStudents = getAvailableStudentsForCourse(courseId);
+                List<String> classNames = courseClasses.stream()
+                        .map(CourseClass::getClassName)
+                        .collect(Collectors.toList());
+                List<User> availableStudents = userRepository.findByClassNameInAndRole(classNames, "STUDENT");
                 List<Long> availableStudentIds = availableStudents.stream()
                         .map(User::getId)
                         .collect(Collectors.toList());
                 if (!availableStudentIds.contains(studentId)) {
-                    throw new BusinessException("您无权操作该学生的成绩，请确认学生是否在您的课程范围内");
+                    throw new BusinessException("您无权操作该学生的成绩，请确认学生是否在您的授课班级范围内");
                 }
             }
         } else if ("HEAD_TEACHER".equals(role)) {

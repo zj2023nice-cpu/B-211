@@ -130,6 +130,15 @@
         </el-form-item>
         <el-form-item label="学生">
           <el-select v-model="form.studentId" placeholder="请选择学生" filterable v-loading="loadingDialogStudents">
+            <template #empty>
+              <div v-if="userStore.role === 'TEACHER' && form.courseId && dialogStudents.length === 0 && !loadingDialogStudents" style="padding: 20px; text-align: center; color: #909399;">
+                <p style="margin-bottom: 8px;">暂无可选学生</p>
+                <p style="font-size: 12px; color: #F56C6C;">该课程尚未配置授课班级范围，请先联系管理员配置</p>
+              </div>
+              <div v-else-if="!loadingDialogStudents" style="padding: 20px; text-align: center; color: #909399;">
+                暂无数据
+              </div>
+            </template>
             <el-option
               v-for="item in dialogStudents"
               :key="item.id"
@@ -471,6 +480,9 @@ const loadDialogStudents = async (courseId) => {
     try {
         const res = await request.get('/grades/available-students', { params: { courseId } })
         dialogStudents.value = res || []
+        if (dialogStudents.value.length === 0) {
+            ElMessage.warning('该课程尚未配置授课班级范围，请先联系管理员配置后再录入成绩')
+        }
     } catch (error) {
         dialogStudents.value = []
     } finally {
