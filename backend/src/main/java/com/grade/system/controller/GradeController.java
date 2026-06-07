@@ -6,6 +6,7 @@ import com.grade.system.dto.ClassRankingDTO;
 import com.grade.system.dto.GradeImportResult;
 import com.grade.system.dto.PageResponse;
 import com.grade.system.entity.Grade;
+import com.grade.system.entity.User;
 import com.grade.system.service.GradeService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
@@ -148,5 +149,12 @@ public class GradeController {
             @RequestParam(required = false) String className) {
         List<ClassRankingDTO> ranking = gradeService.getClassRanking(term, className);
         return ApiResponse.success(ranking);
+    }
+
+    @GetMapping("/available-students")
+    public ApiResponse<List<User>> getAvailableStudentsForCourse(
+            @RequestParam(required = false) Long courseId) {
+        List<User> students = gradeService.getAvailableStudentsForCourse(courseId);
+        return ApiResponse.success(students);
     }
 }

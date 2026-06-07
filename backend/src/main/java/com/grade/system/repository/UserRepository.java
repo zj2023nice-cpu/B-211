@@ -3,6 +3,7 @@ package com.grade.system.repository;
 import com.grade.system.entity.User;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import java.util.List;
 import java.util.Optional;
 
@@ -14,4 +15,9 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     @Query("SELECT DISTINCT u.className FROM User u WHERE u.className IS NOT NULL AND u.className <> '' ORDER BY u.className")
     List<String> findDistinctClassNames();
+
+    @Query("SELECT DISTINCT u.className FROM User u WHERE u.id IN :studentIds AND u.className IS NOT NULL")
+    List<String> findDistinctClassNamesByStudentIds(@Param("studentIds") List<Long> studentIds);
+
+    List<User> findByClassNameInAndRole(List<String> classNames, String role);
 }

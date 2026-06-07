@@ -481,6 +481,54 @@ public class GradeService {
         }
     }
 
+    public List<User> getAvailableStudentsForCourse(Long courseId) {
+        LoginUserInfo currentUser = UserContext.getUser();
+        if (currentUser == null) {
+            throw new BusinessException("用户未登录");
+        }
+
+        String role = currentUser.getRole();
+        if ("ADMIN".equals(role)) {
+            return userRepository.findByRole("STUDENT");
+        }
+
+        if ("HEAD_TEACHER".equals(role)) {
+            String userClassName = currentUser.getClassName();
+            if (userClassName != null && !userClassName.isEmpty()) {
+                return userRepository.findByClassName(userClassName).stream()
+                        .filter(u -> "STUDENT".equals(u.getRole()))
+                        .collect(Collectors.toList());
+            }
+            return new ArrayList<>();
+        }
+
+        if ("TEACHER".equals(role)) {
+            if (courseId == null) {
+                return new ArrayList<>();
+            }
+            Course course = courseRepository.findById(courseId).orElseThrow(() ->
+                new ResourceNotFoundException(ErrorCode.COURSE_NOT_FOUND));
+            if (!currentUser.getId().equals(course.getTeacherId())) {
+                throw new BusinessException("您无权查看该课程的学生信息");
+            }
+            List<Grade> courseGrades = gradeRepository.findByCourseId(courseId);
+            if (courseGrades.isEmpty()) {
+                return new ArrayList<>();
+            }
+            List<Long> studentIds = courseGrades.stream()
+                    .map(Grade::getStudentId)
+                    .distinct()
+                    .collect(Collectors.toList());
+            List<String> classNames = userRepository.findDistinctClassNamesByStudentIds(studentIds);
+            if (classNames.isEmpty()) {
+                return new ArrayList<>();
+            }
+            return userRepository.findByClassNameInAndRole(classNames, "STUDENT");
+        }
+
+        return new ArrayList<>();
+    }
+
     private void validateGradePermission(Long courseId, Long studentId) {
         LoginUserInfo currentUser = UserContext.getUser();
         if (currentUser == null) {
@@ -500,6 +548,15 @@ public class GradeService {
                 new ResourceNotFoundException(ErrorCode.COURSE_NOT_FOUND));
             if (!currentUser.getId().equals(course.getTeacherId())) {
                 throw new BusinessException("您无权操作该课程的成绩");
+            }
+            if (studentId != null) {
+                List<User> availableStudents = getAvailableStudentsForCourse(courseId);
+                List<Long> availableStudentIds = availableStudents.stream()
+                        .map(User::getId)
+                        .collect(Collectors.toList());
+                if (!availableStudentIds.contains(studentId)) {
+                    throw new BusinessException("您无权操作该学生的成绩，请确认学生是否在您的课程范围内");
+                }
             }
         } else if ("HEAD_TEACHER".equals(role)) {
             if (studentId == null) {

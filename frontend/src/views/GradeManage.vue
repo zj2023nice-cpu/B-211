@@ -129,9 +129,9 @@
           </el-select>
         </el-form-item>
         <el-form-item label="学生">
-          <el-select v-model="form.studentId" placeholder="请选择学生" filterable>
+          <el-select v-model="form.studentId" placeholder="请选择学生" filterable v-loading="loadingDialogStudents">
             <el-option
-              v-for="item in students"
+              v-for="item in dialogStudents"
               :key="item.id"
               :label="item.name + ' (' + item.username + ')'"
               :value="item.id"
@@ -223,8 +223,10 @@ const tableData = ref([])
 const courses = ref([])
 const allCourses = ref([])
 const students = ref([])
+const dialogStudents = ref([])
 const dialogVisible = ref(false)
 const dialogTitle = ref('')
+const loadingDialogStudents = ref(false)
 
 const filterTerm = ref('')
 const filterCourse = ref('')
@@ -450,6 +452,32 @@ const getStudentClass = (id) => {
     return student ? (student.className || '未知班级') : '-'
 }
 
+const loadDialogStudents = async (courseId) => {
+    if (userStore.role !== 'TEACHER') {
+        if (userStore.role === 'HEAD_TEACHER' && userStore.user?.className) {
+            dialogStudents.value = students.value
+        } else {
+            dialogStudents.value = students.value
+        }
+        return
+    }
+    
+    if (!courseId) {
+        dialogStudents.value = []
+        return
+    }
+    
+    loadingDialogStudents.value = true
+    try {
+        const res = await request.get('/grades/available-students', { params: { courseId } })
+        dialogStudents.value = res || []
+    } catch (error) {
+        dialogStudents.value = []
+    } finally {
+        loadingDialogStudents.value = false
+    }
+}
+
 const fetchData = async () => {
   loading.value = true
   try {
@@ -532,6 +560,7 @@ const handleAdd = () => {
     makeupScore: null,
     term: editableTermOptions.value[0]
   })
+  dialogStudents.value = userStore.role === 'TEACHER' ? [] : students.value
   dialogVisible.value = true
 }
 
@@ -541,8 +570,20 @@ const handleEdit = (row) => {
     ...row,
     term: row.term || ''
   })
+  if (userStore.role === 'TEACHER') {
+    loadDialogStudents(row.courseId)
+  } else {
+    dialogStudents.value = students.value
+  }
   dialogVisible.value = true
 }
+
+watch(() => form.courseId, (newCourseId) => {
+  if (dialogVisible.value && userStore.role === 'TEACHER') {
+    form.studentId = null
+    loadDialogStudents(newCourseId)
+  }
+})
 
 const handleDelete = (row) => {
   ElMessageBox.confirm('确认删除该成绩记录吗?', '提示', {
