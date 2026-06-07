@@ -40,11 +40,15 @@ public class DashboardController {
             @RequestParam(required = false) String className,
             @RequestParam(required = false) String term) {
 
-        String targetClass = className;
-        if (targetClass == null || targetClass.isEmpty()) {
-            if ("HEAD_TEACHER".equals(role) && userClass != null && !userClass.isEmpty()) {
-                targetClass = userClass;
-            }
+        if (!"ADMIN".equals(role) && !"HEAD_TEACHER".equals(role)) {
+            return ApiResponse.error("无权限访问");
+        }
+
+        String targetClass;
+        if ("HEAD_TEACHER".equals(role)) {
+            targetClass = userClass;
+        } else {
+            targetClass = className;
         }
 
         if (targetClass == null || targetClass.isEmpty()) {

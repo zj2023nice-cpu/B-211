@@ -12,14 +12,15 @@
               <el-option v-for="term in termOptions" :key="term" :label="term" :value="term" />
             </el-select>
             <el-select 
+              v-if="canSelectClass"
               v-model="selectedClass" 
               placeholder="选择班级" 
               style="width: 150px" 
               @change="fetchClassProfile"
-              :disabled="!canSelectClass"
             >
               <el-option v-for="cls in classOptions" :key="cls" :label="cls" :value="cls" />
             </el-select>
+            <el-tag v-else type="info" size="large">{{ selectedClass }}</el-tag>
           </div>
         </div>
       </template>

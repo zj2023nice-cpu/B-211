@@ -74,7 +74,7 @@ const router = createRouter({
           path: 'class-profile',
           name: 'ClassProfile',
           component: () => import('../views/ClassProfile.vue'),
-          meta: { title: '班级画像', roles: ['ADMIN', 'HEAD_TEACHER', 'TEACHER'] }
+          meta: { title: '班级画像', roles: ['ADMIN', 'HEAD_TEACHER'] }
         },
         {
           path: 'profile',

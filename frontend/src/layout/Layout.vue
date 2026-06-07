@@ -58,7 +58,7 @@
           <template #title>班级排行榜</template>
         </el-menu-item>
 
-        <el-menu-item index="/class-profile" v-if="['ADMIN', 'TEACHER', 'HEAD_TEACHER'].includes(userStore.role)">
+        <el-menu-item index="/class-profile" v-if="['ADMIN', 'HEAD_TEACHER'].includes(userStore.role)">
           <el-icon><DataAnalysis /></el-icon>
           <template #title>班级画像</template>
         </el-menu-item>
