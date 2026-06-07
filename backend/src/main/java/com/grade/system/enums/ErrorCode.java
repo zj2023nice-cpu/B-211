@@ -15,6 +15,7 @@ public enum ErrorCode {
     
     COURSE_NOT_FOUND(2001, "课程不存在"),
     COURSE_ALREADY_EXISTS(2002, "课程已存在"),
+    COURSE_HAS_GRADES(2003, "该课程存在关联成绩，无法删除"),
     
     GRADE_NOT_FOUND(3001, "成绩记录不存在"),
     GRADE_ALREADY_EXISTS(3002, "该学生在该学期已存在此课程的成绩记录"),

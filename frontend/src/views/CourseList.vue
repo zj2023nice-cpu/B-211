@@ -14,6 +14,46 @@
         </div>
       </template>
       
+      <div class="search-filter-bar">
+        <el-form :inline="true" :model="searchForm">
+          <el-form-item label="课程名称">
+            <el-input
+              v-model="searchForm.name"
+              placeholder="请输入课程名称"
+              clearable
+              style="width: 200px"
+              @keyup.enter="handleSearch"
+            />
+          </el-form-item>
+          <el-form-item label="任课教师">
+            <el-select
+              v-model="searchForm.teacherId"
+              placeholder="请选择教师"
+              clearable
+              style="width: 200px"
+              @change="handleSearch"
+            >
+              <el-option
+                v-for="item in teachers"
+                :key="item.id"
+                :label="item.name"
+                :value="item.id"
+              />
+            </el-select>
+          </el-form-item>
+          <el-form-item>
+            <el-button type="primary" @click="handleSearch">
+              <el-icon><Search /></el-icon>
+              搜索
+            </el-button>
+            <el-button @click="handleReset">
+              <el-icon><RefreshRight /></el-icon>
+              重置
+            </el-button>
+          </el-form-item>
+        </el-form>
+      </div>
+
       <el-table :data="tableData" style="width: 100%" v-loading="loading">
         <el-table-column prop="id" label="ID" width="60" />
         <el-table-column prop="name" label="课程名称" />
@@ -43,13 +83,18 @@
       />
     </div>
 
-    <el-dialog v-model="dialogVisible" :title="dialogTitle">
-      <el-form :model="form" label-width="80px">
-        <el-form-item label="课程名称">
-          <el-input v-model="form.name" />
+    <el-dialog v-model="dialogVisible" :title="dialogTitle" @close="handleDialogClose">
+      <el-form
+        ref="courseFormRef"
+        :model="form"
+        :rules="formRules"
+        label-width="80px"
+      >
+        <el-form-item label="课程名称" prop="name">
+          <el-input v-model="form.name" placeholder="请输入课程名称" />
         </el-form-item>
-        <el-form-item label="任课教师">
-          <el-select v-model="form.teacherId" placeholder="请选择教师">
+        <el-form-item label="任课教师" prop="teacherId">
+          <el-select v-model="form.teacherId" placeholder="请选择教师" style="width: 100%">
             <el-option
               v-for="item in teachers"
               :key="item.id"
@@ -74,7 +119,7 @@ import { ref, onMounted, reactive, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import request from '@/utils/request'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Guide } from '@element-plus/icons-vue'
+import { Guide, Search, RefreshRight } from '@element-plus/icons-vue'
 
 const router = useRouter()
 
@@ -83,10 +128,16 @@ const tableData = ref([])
 const teachers = ref([])
 const dialogVisible = ref(false)
 const dialogTitle = ref('')
+const courseFormRef = ref(null)
 
 const currentPage = ref(0)
 const pageSize = ref(10)
 const total = ref(0)
+
+const searchForm = reactive({
+  name: '',
+  teacherId: null
+})
 
 const currentPageForDisplay = computed({
   get: () => currentPage.value + 1,
@@ -101,6 +152,23 @@ const form = reactive({
   teacherId: null
 })
 
+const validateCourseName = async (rule, value, callback) => {
+  if (!value || !value.trim()) {
+    callback(new Error('请输入课程名称'))
+    return
+  }
+  callback()
+}
+
+const formRules = {
+  name: [
+    { required: true, validator: validateCourseName, trigger: 'blur' }
+  ],
+  teacherId: [
+    { required: true, message: '请选择任课教师', trigger: 'change' }
+  ]
+}
+
 const getTeacherName = (id) => {
     const teacher = teachers.value.find(t => t.id === id)
     return teacher ? teacher.name : id
@@ -113,7 +181,9 @@ const fetchData = async () => {
         request.get('/courses', {
           params: {
             page: currentPage.value,
-            size: pageSize.value
+            size: pageSize.value,
+            name: searchForm.name || undefined,
+            teacherId: searchForm.teacherId || undefined
           }
         }),
         request.get('/users')
@@ -129,6 +199,18 @@ const fetchData = async () => {
   } finally {
     loading.value = false
   }
+}
+
+const handleSearch = () => {
+  currentPage.value = 0
+  fetchData()
+}
+
+const handleReset = () => {
+  searchForm.name = ''
+  searchForm.teacherId = null
+  currentPage.value = 0
+  fetchData()
 }
 
 const handlePageChange = (val) => {
@@ -158,16 +240,41 @@ const handleEdit = (row) => {
   dialogVisible.value = true
 }
 
-const handleDelete = (row) => {
-  ElMessageBox.confirm('确认删除该课程吗?', '提示', {
-    confirmButtonText: '确定',
-    cancelButtonText: '取消',
-    type: 'warning'
-  }).then(async () => {
-    await request.delete(`/courses/${row.id}`)
-    ElMessage.success('删除成功')
-    fetchData()
-  })
+const handleDialogClose = () => {
+  courseFormRef.value?.resetFields()
+}
+
+const handleDelete = async (row) => {
+  try {
+    const impact = await request.get(`/courses/${row.id}/deletion-impact`)
+    
+    let confirmMessage = `确认删除课程【${row.name}】吗？`
+    
+    if (impact.gradeCount > 0) {
+      confirmMessage = `
+        课程【${row.name}】下存在 ${impact.gradeCount} 条关联的成绩记录。
+        为保证数据完整性，该课程暂无法删除。
+        请先删除或转移相关成绩数据后再操作。
+      `
+      ElMessageBox.alert(confirmMessage, '无法删除', {
+        confirmButtonText: '我知道了',
+        type: 'warning',
+        dangerouslyUseHTMLString: true
+      })
+    } else {
+      ElMessageBox.confirm(confirmMessage, '提示', {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }).then(async () => {
+        await request.delete(`/courses/${row.id}`)
+        ElMessage.success('删除成功')
+        fetchData()
+      }).catch(() => {})
+    }
+  } catch (error) {
+    // Error handled by interceptor
+  }
 }
 
 const goToTeacherOverview = () => {
@@ -175,6 +282,14 @@ const goToTeacherOverview = () => {
 }
 
 const handleSubmit = async () => {
+  if (!courseFormRef.value) return
+  
+  try {
+    await courseFormRef.value.validate()
+  } catch (error) {
+    return
+  }
+  
   try {
     if (form.id) {
       await request.put(`/courses/${form.id}`, form)
@@ -186,7 +301,7 @@ const handleSubmit = async () => {
     dialogVisible.value = false
     fetchData()
   } catch (error) {
-    // Error handled
+    // Error handled by interceptor
   }
 }
 
@@ -228,6 +343,17 @@ onMounted(() => {
     font-weight: 600;
     color: var(--text-primary);
     font-family: 'Montserrat', sans-serif;
+}
+
+.search-filter-bar {
+  margin-bottom: 20px;
+  padding: 15px;
+  background-color: #f5f7fa;
+  border-radius: 4px;
+}
+
+.search-filter-bar :deep(.el-form-item) {
+  margin-bottom: 0;
 }
 
 .pagination-container {

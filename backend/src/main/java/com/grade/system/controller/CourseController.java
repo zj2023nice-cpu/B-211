@@ -11,6 +11,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @RestController
@@ -25,14 +26,22 @@ public class CourseController {
     @GetMapping
     public ApiResponse<?> getAllCourses(
             @RequestParam(required = false) Integer page,
-            @RequestParam(required = false) Integer size) {
+            @RequestParam(required = false) Integer size,
+            @RequestParam(required = false) String name,
+            @RequestParam(required = false) Long teacherId) {
         if (page != null && size != null) {
-            PageResponse<Course> coursePage = courseService.getCoursesPage(page, size);
+            PageResponse<Course> coursePage = courseService.getCoursesPage(page, size, name, teacherId);
             return ApiResponse.success(coursePage);
         } else {
             List<Course> courses = courseService.getAllCourses();
             return ApiResponse.success(courses);
         }
+    }
+
+    @GetMapping("/{id}/deletion-impact")
+    public ApiResponse<Map<String, Object>> getCourseDeletionImpact(@PathVariable Long id) {
+        Map<String, Object> impact = courseService.getCourseDeletionImpact(id);
+        return ApiResponse.success(impact);
     }
 
     @AuditLog(module = "课程管理", action = "新增", description = "新增课程")

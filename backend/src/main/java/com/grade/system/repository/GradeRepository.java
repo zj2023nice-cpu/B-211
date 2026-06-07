@@ -19,6 +19,10 @@ public interface GradeRepository extends JpaRepository<Grade, Long>, JpaSpecific
     boolean existsByStudentIdAndCourseIdAndTerm(Long studentId, Long courseId, String term);
 
     boolean existsByStudentIdAndCourseIdAndTermAndIdNot(Long studentId, Long courseId, String term, Long id);
+    
+    boolean existsByCourseId(Long courseId);
+    
+    long countByCourseId(Long courseId);
 
     @Query("SELECT DISTINCT g.term FROM Grade g ORDER BY g.term DESC")
     List<String> findDistinctTerms();
