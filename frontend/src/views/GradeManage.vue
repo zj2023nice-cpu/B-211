@@ -488,7 +488,7 @@ const fetchData = async () => {
     courses.value = coursesRes
     students.value = usersRes.filter(u => u.role === 'STUDENT')
     
-    if (['TEACHER', 'HEAD_TEACHER'].includes(userStore.role)) {
+    if (userStore.role === 'TEACHER') {
         courses.value = coursesRes.filter(c => c.teacherId === userStore.user.id)
     }
     

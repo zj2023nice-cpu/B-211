@@ -1,8 +1,10 @@
 package com.grade.system.service;
 
+import com.grade.system.context.UserContext;
 import com.grade.system.dto.ClassRankingDTO;
 import com.grade.system.dto.GradeImportResult;
 import com.grade.system.dto.GradeWarningDTO;
+import com.grade.system.dto.LoginUserInfo;
 import com.grade.system.dto.PageResponse;
 import com.grade.system.entity.Course;
 import com.grade.system.entity.Grade;
@@ -183,6 +185,7 @@ public class GradeService {
     public Grade saveGrade(Grade grade) {
         String normalizedTerm = normalizeTerm(grade.getTerm());
         validateManagedTerm(normalizedTerm);
+        validateGradePermission(grade.getCourseId(), grade.getStudentId());
         grade.setTerm(normalizedTerm);
         if (gradeRepository.existsByStudentIdAndCourseIdAndTerm(
                 grade.getStudentId(), grade.getCourseId(), normalizedTerm)) {
@@ -194,6 +197,8 @@ public class GradeService {
     public Grade updateGrade(Long id, Grade gradeDetails) {
         Grade grade = gradeRepository.findById(id).orElseThrow(() ->
             new ResourceNotFoundException(ErrorCode.GRADE_NOT_FOUND));
+
+        validateGradePermission(grade.getCourseId(), grade.getStudentId());
 
         String originalTerm = normalizeTerm(grade.getTerm());
         String targetTerm = normalizeTerm(gradeDetails.getTerm());
@@ -213,6 +218,9 @@ public class GradeService {
     }
 
     public void deleteGrade(Long id) {
+        Grade grade = gradeRepository.findById(id).orElseThrow(() ->
+            new ResourceNotFoundException(ErrorCode.GRADE_NOT_FOUND));
+        validateGradePermission(grade.getCourseId(), grade.getStudentId());
         gradeRepository.deleteById(id);
     }
 
@@ -316,6 +324,8 @@ public class GradeService {
                     }
                     
                     processedKeys.add(uniqueKey);
+                    
+                    validateGradePermission(course.getId(), student.getId());
                     
                     Grade grade = new Grade();
                     grade.setStudentId(student.getId());
@@ -468,6 +478,42 @@ public class GradeService {
         List<String> enabledTerms = termService.getEnabledTermNames();
         if (!enabledTerms.contains(normalizedTerm)) {
             throw new BusinessException("学期必须从已启用的学期中选择");
+        }
+    }
+
+    private void validateGradePermission(Long courseId, Long studentId) {
+        LoginUserInfo currentUser = UserContext.getUser();
+        if (currentUser == null) {
+            throw new BusinessException("用户未登录");
+        }
+
+        String role = currentUser.getRole();
+        if ("ADMIN".equals(role)) {
+            return;
+        }
+
+        if ("TEACHER".equals(role)) {
+            if (courseId == null) {
+                throw new BusinessException("课程ID不能为空");
+            }
+            Course course = courseRepository.findById(courseId).orElseThrow(() ->
+                new ResourceNotFoundException(ErrorCode.COURSE_NOT_FOUND));
+            if (!currentUser.getId().equals(course.getTeacherId())) {
+                throw new BusinessException("您无权操作该课程的成绩");
+            }
+        } else if ("HEAD_TEACHER".equals(role)) {
+            if (studentId == null) {
+                throw new BusinessException("学生ID不能为空");
+            }
+            String userClassName = currentUser.getClassName();
+            if (userClassName == null || userClassName.isEmpty()) {
+                throw new BusinessException("未获取到您的班级信息");
+            }
+            User student = userRepository.findById(studentId).orElseThrow(() ->
+                new ResourceNotFoundException(ErrorCode.USER_NOT_FOUND));
+            if (!userClassName.equals(student.getClassName())) {
+                throw new BusinessException("您无权操作该学生的成绩");
+            }
         }
     }
 
