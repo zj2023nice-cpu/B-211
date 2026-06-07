@@ -3,6 +3,7 @@ package com.grade.system.controller;
 import com.grade.system.annotation.AuditLog;
 import com.grade.system.dto.ApiResponse;
 import com.grade.system.dto.PageResponse;
+import com.grade.system.dto.ResetPasswordRequest;
 import com.grade.system.dto.UserImportResult;
 import com.grade.system.entity.User;
 import com.grade.system.service.UserService;
@@ -61,6 +62,14 @@ public class UserController {
     public ApiResponse<User> getUser(@PathVariable Long id) {
         User user = userService.getUser(id);
         return ApiResponse.success(user);
+    }
+
+    @AuditLog(module = "用户管理", action = "重置密码", description = "重置用户密码", saveParams = false)
+    @PutMapping("/{id}/reset-password")
+    public ApiResponse<Void> resetPassword(@PathVariable Long id, @RequestBody(required = false) ResetPasswordRequest request) {
+        String newPassword = request != null ? request.getNewPassword() : null;
+        userService.resetPassword(id, newPassword);
+        return ApiResponse.success("密码重置成功", null);
     }
 
     @AuditLog(module = "用户管理", action = "导入", description = "批量导入用户")

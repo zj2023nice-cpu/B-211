@@ -130,6 +130,18 @@ public class UserService {
             new ResourceNotFoundException(ErrorCode.USER_NOT_FOUND));
     }
 
+    public void resetPassword(Long userId, String newPassword) {
+        User user = userRepository.findById(userId).orElseThrow(() ->
+            new ResourceNotFoundException(ErrorCode.USER_NOT_FOUND));
+        
+        String passwordToSet = (newPassword == null || newPassword.isEmpty()) 
+            ? "123456" 
+            : newPassword;
+        
+        user.setPassword(passwordEncoder.encode(passwordToSet));
+        userRepository.save(user);
+    }
+
     private static final Set<String> VALID_ROLES = new HashSet<>(Arrays.asList("ADMIN", "TEACHER", "HEAD_TEACHER", "STUDENT"));
     private static final Set<String> ROLES_REQUIRE_CLASS = new HashSet<>(Arrays.asList("STUDENT", "HEAD_TEACHER"));
 

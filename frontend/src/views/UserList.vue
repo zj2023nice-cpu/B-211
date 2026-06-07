@@ -38,9 +38,10 @@
                 {{ scope.row.contact || '-' }}
             </template>
         </el-table-column>
-        <el-table-column label="操作" width="200" align="center">
+        <el-table-column label="操作" width="280" align="center">
           <template #default="scope">
             <el-button size="small" :icon="Edit" @click="handleEdit(scope.row)">编辑</el-button>
+            <el-button size="small" type="warning" :icon="Key" @click="handleResetPassword(scope.row)">重置密码</el-button>
             <el-button size="small" type="danger" :icon="Delete" @click="handleDelete(scope.row)">删除</el-button>
           </template>
         </el-table-column>
@@ -67,6 +68,7 @@
                     </div>
                     <div class="user-card-actions">
                         <el-button type="primary" link :icon="Edit" @click="handleEdit(user)">编辑</el-button>
+                        <el-button type="warning" link :icon="Key" @click="handleResetPassword(user)">重置密码</el-button>
                         <el-button type="danger" link :icon="Delete" @click="handleDelete(user)">删除</el-button>
                     </div>
                 </el-card>
@@ -117,6 +119,32 @@
         <span class="dialog-footer">
           <el-button @click="dialogVisible = false">取消</el-button>
           <el-button type="primary" @click="handleSubmit">确定</el-button>
+        </span>
+      </template>
+    </el-dialog>
+
+    <el-dialog v-model="resetPasswordDialogVisible" title="重置用户密码" width="450px">
+      <el-alert
+        title="不输入新密码则重置为默认密码 123456"
+        type="info"
+        :closable="false"
+        style="margin-bottom: 20px"
+      />
+      <el-form :model="resetPasswordForm" label-width="100px">
+        <el-form-item label="用户名">
+          <el-input :value="resetPasswordTargetUser.username" disabled />
+        </el-form-item>
+        <el-form-item label="姓名">
+          <el-input :value="resetPasswordTargetUser.name" disabled />
+        </el-form-item>
+        <el-form-item label="新密码">
+          <el-input v-model="resetPasswordForm.newPassword" placeholder="请输入新密码，留空则使用默认密码" show-password />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="resetPasswordDialogVisible = false">取消</el-button>
+          <el-button type="primary" @click="handleResetPasswordSubmit">确定重置</el-button>
         </span>
       </template>
     </el-dialog>
@@ -185,7 +213,7 @@
 import { ref, onMounted, reactive, computed } from 'vue'
 import request from '@/utils/request'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { User, Plus, Edit, Delete, School, Phone, Finished, Grid, Upload, Download, UploadFilled } from '@element-plus/icons-vue'
+import { User, Plus, Edit, Delete, School, Phone, Finished, Grid, Upload, Download, UploadFilled, Key } from '@element-plus/icons-vue'
 
 const loading = ref(false)
 const tableData = ref([])
@@ -219,6 +247,16 @@ const importing = ref(false)
 const uploadRef = ref(null)
 const selectedFile = ref(null)
 const importResult = ref(null)
+
+const resetPasswordDialogVisible = ref(false)
+const resetPasswordTargetUser = reactive({
+  id: null,
+  username: '',
+  name: ''
+})
+const resetPasswordForm = reactive({
+  newPassword: ''
+})
 
 const getRoleName = (role) => {
     const map = { 'ADMIN': '管理员', 'TEACHER': '教师', 'HEAD_TEACHER': '班主任', 'STUDENT': '学生' }
@@ -303,6 +341,30 @@ const handleDelete = (row) => {
     ElMessage.success('删除成功')
     fetchData()
   })
+}
+
+const handleResetPassword = (row) => {
+  Object.assign(resetPasswordTargetUser, {
+    id: row.id,
+    username: row.username,
+    name: row.name
+  })
+  resetPasswordForm.newPassword = ''
+  resetPasswordDialogVisible.value = true
+}
+
+const handleResetPasswordSubmit = async () => {
+  try {
+    const payload = {}
+    if (resetPasswordForm.newPassword && resetPasswordForm.newPassword.trim()) {
+      payload.newPassword = resetPasswordForm.newPassword
+    }
+    await request.put(`/users/${resetPasswordTargetUser.id}/reset-password`, payload)
+    ElMessage.success('密码重置成功')
+    resetPasswordDialogVisible.value = false
+  } catch (error) {
+    // Error handled
+  }
 }
 
 const handleSubmit = async () => {
