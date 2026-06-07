@@ -119,4 +119,38 @@ public class TermService {
 
         return result;
     }
+
+    public Optional<String> resolveDashboardTermName() {
+        List<String> configuredTerms = termRepository.findEnabledTermNames().stream()
+                .map(this::normalizeTermName)
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
+
+        List<String> historicalTerms = gradeRepository.findDistinctNormalizedTerms().stream()
+                .map(this::normalizeTermName)
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
+
+        for (String configuredTerm : configuredTerms) {
+            if (historicalTerms.contains(configuredTerm)) {
+                return Optional.of(configuredTerm);
+            }
+        }
+
+        if (!historicalTerms.isEmpty()) {
+            return Optional.of(historicalTerms.get(0));
+        }
+
+        return Optional.empty();
+    }
+
+    private String normalizeTermName(String term) {
+        if (term == null) {
+            return null;
+        }
+        String normalized = term.trim();
+        return normalized.isEmpty() ? null : normalized;
+    }
 }

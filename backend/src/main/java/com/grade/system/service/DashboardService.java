@@ -8,12 +8,10 @@ import com.grade.system.dto.TeacherCourseOverviewDTO;
 import com.grade.system.entity.AuditLog;
 import com.grade.system.entity.Course;
 import com.grade.system.entity.Grade;
-import com.grade.system.entity.Term;
 import com.grade.system.entity.User;
 import com.grade.system.repository.AuditLogRepository;
 import com.grade.system.repository.CourseRepository;
 import com.grade.system.repository.GradeRepository;
-import com.grade.system.repository.TermRepository;
 import com.grade.system.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
@@ -46,7 +44,7 @@ public class DashboardService {
     private AuditLogRepository auditLogRepository;
 
     @Autowired
-    private TermRepository termRepository;
+    private TermService termService;
 
     @Autowired
     private ObjectMapper objectMapper;
@@ -201,24 +199,35 @@ public class DashboardService {
         if ("week".equals(period)) {
             LocalDateTime weekStart = LocalDate.now().with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)).atStartOfDay();
             return grades.stream()
-                    .filter(g -> g.getCreatedAt() != null && g.getCreatedAt().isAfter(weekStart))
+                    .filter(g -> g.getCreatedAt() != null && !g.getCreatedAt().isBefore(weekStart))
                     .collect(Collectors.toList());
         } else if ("month".equals(period)) {
             LocalDateTime monthStart = LocalDate.now().with(TemporalAdjusters.firstDayOfMonth()).atStartOfDay();
             return grades.stream()
-                    .filter(g -> g.getCreatedAt() != null && g.getCreatedAt().isAfter(monthStart))
+                    .filter(g -> g.getCreatedAt() != null && !g.getCreatedAt().isBefore(monthStart))
                     .collect(Collectors.toList());
         } else if ("term".equals(period)) {
-            List<Term> enabledTerms = termRepository.findByEnabledTrueOrderBySortOrderDescCreatedAtDesc();
-            if (!enabledTerms.isEmpty()) {
-                String currentTermName = enabledTerms.get(0).getName();
-                return grades.stream()
-                        .filter(g -> currentTermName.equals(g.getTerm()))
+            Optional<String> dashboardTermName = termService.resolveDashboardTermName();
+            if (dashboardTermName.isPresent()) {
+                String currentTermName = dashboardTermName.get();
+                List<Grade> matchedGrades = grades.stream()
+                        .filter(g -> currentTermName.equals(normalizeTerm(g.getTerm())))
                         .collect(Collectors.toList());
+                if (!matchedGrades.isEmpty()) {
+                    return matchedGrades;
+                }
             }
         }
-        
+
         return grades;
+    }
+
+    private String normalizeTerm(String term) {
+        if (term == null) {
+            return null;
+        }
+        String normalized = term.trim();
+        return normalized.isEmpty() ? null : normalized;
     }
 
     private List<Course> getRelevantCourses(Long userId, String role) {

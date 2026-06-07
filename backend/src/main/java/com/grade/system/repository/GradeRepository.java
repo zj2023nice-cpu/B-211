@@ -32,4 +32,7 @@ public interface GradeRepository extends JpaRepository<Grade, Long>, JpaSpecific
 
     @Query("SELECT DISTINCT g.term FROM Grade g ORDER BY g.term DESC")
     List<String> findDistinctTerms();
+
+    @Query("SELECT DISTINCT TRIM(g.term) FROM Grade g WHERE g.term IS NOT NULL AND TRIM(g.term) <> '' ORDER BY TRIM(g.term) DESC")
+    List<String> findDistinctNormalizedTerms();
 }

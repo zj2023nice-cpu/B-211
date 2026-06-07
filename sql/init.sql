@@ -63,11 +63,11 @@ INSERT INTO `courses` VALUES (3, '物理', 5);
 -- ----------------------------
 -- Records of grades
 -- ----------------------------
-INSERT INTO `grades` VALUES (1, 3, 1, 85, NULL, '2023-Fall');
-INSERT INTO `grades` VALUES (2, 3, 2, 78, NULL, '2023-Fall');
-INSERT INTO `grades` VALUES (3, 4, 1, 58, 62, '2023-Fall');
-INSERT INTO `grades` VALUES (4, 3, 3, 90, NULL, '2023-Fall');
-INSERT INTO `grades` VALUES (5, 4, 3, 88, NULL, '2023-Fall');
+INSERT INTO `grades` (`id`, `student_id`, `course_id`, `score`, `makeup_score`, `term`, `created_at`, `updated_at`) VALUES (1, 3, 1, 85, NULL, '2024-Fall', NOW(), NOW());
+INSERT INTO `grades` (`id`, `student_id`, `course_id`, `score`, `makeup_score`, `term`, `created_at`, `updated_at`) VALUES (2, 3, 2, 78, NULL, '2024-Fall', NOW(), NOW());
+INSERT INTO `grades` (`id`, `student_id`, `course_id`, `score`, `makeup_score`, `term`, `created_at`, `updated_at`) VALUES (3, 4, 1, 58, 62, '2024-Fall', NOW(), NOW());
+INSERT INTO `grades` (`id`, `student_id`, `course_id`, `score`, `makeup_score`, `term`, `created_at`, `updated_at`) VALUES (4, 3, 3, 90, NULL, '2024-Fall', NOW(), NOW());
+INSERT INTO `grades` (`id`, `student_id`, `course_id`, `score`, `makeup_score`, `term`, `created_at`, `updated_at`) VALUES (5, 4, 3, 88, NULL, '2024-Fall', NOW(), NOW());
 
 -- ----------------------------
 -- Table structure for announcements
