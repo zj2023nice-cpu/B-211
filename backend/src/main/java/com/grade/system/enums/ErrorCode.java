@@ -19,6 +19,9 @@ public enum ErrorCode {
     GRADE_NOT_FOUND(3001, "成绩记录不存在"),
     GRADE_ALREADY_EXISTS(3002, "该学生在该学期已存在此课程的成绩记录"),
     
+    TERM_NOT_FOUND(3501, "学期不存在"),
+    TERM_ALREADY_EXISTS(3502, "学期已存在"),
+    
     DATA_INTEGRITY_VIOLATION(4001, "数据完整性约束违反"),
     FILE_READ_ERROR(4002, "文件读取失败"),
     FILE_FORMAT_ERROR(4003, "文件格式错误");

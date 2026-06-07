@@ -35,6 +35,12 @@ const router = createRouter({
           meta: { title: '课程管理', roles: ['ADMIN'] }
         },
         {
+          path: 'terms',
+          name: 'Terms',
+          component: () => import('../views/TermManage.vue'),
+          meta: { title: '学期管理', roles: ['ADMIN'] }
+        },
+        {
           path: 'audit-logs',
           name: 'AuditLog',
           component: () => import('../views/AuditLog.vue'),

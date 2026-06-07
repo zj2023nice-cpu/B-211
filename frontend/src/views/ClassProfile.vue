@@ -182,7 +182,12 @@ const getScoreClass = (score) => {
 
 const fetchTerms = async () => {
   try {
-    const res = await request.get('/grades/ranking/terms')
+    let res = []
+    try {
+      res = await request.get('/terms/names')
+    } catch (e) {
+      res = await request.get('/grades/ranking/terms')
+    }
     termOptions.value = res
   } catch (e) {
     console.error('获取学期列表失败', e)

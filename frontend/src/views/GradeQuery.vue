@@ -141,8 +141,12 @@ const termFilter = ref('')
 const courseFilter = ref('')
 const studentFilter = ref('')
 const isReportMode = ref(false)
+const termOptionsFromAPI = ref([])
 
 const termOptions = computed(() => {
+    if (termOptionsFromAPI.value && termOptionsFromAPI.value.length > 0) {
+        return termOptionsFromAPI.value
+    }
     return [...new Set(tableData.value.map(item => item.term))].sort()
 })
 
@@ -248,12 +252,14 @@ const fetchData = async () => {
         }
     }
     
-    const [gradesRes, coursesRes, usersRes] = await Promise.all([
+    const [gradesRes, coursesRes, usersRes, termsRes] = await Promise.all([
         request.get(gradesUrl),
         request.get('/courses'),
-        request.get('/users')
+        request.get('/users'),
+        request.get('/terms/names').catch(() => [])
     ])
     
+    termOptionsFromAPI.value = termsRes || []
     tableData.value = gradesRes
     allCourses.value = coursesRes
     courses.value = coursesRes

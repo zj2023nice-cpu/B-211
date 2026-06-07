@@ -93,4 +93,29 @@ INSERT INTO `announcements` VALUES (1, '关于本学期期末考试成绩录入�
 INSERT INTO `announcements` VALUES (2, '系统维护升级公告 (v1.2.0)', '系统将于本周六凌晨进行维护升级，届时系统将暂停服务，请提前做好相关安排。', 'NOTICE', 1, 2, 1, NOW(), NOW());
 INSERT INTO `announcements` VALUES (3, '欢迎新同学加入成绩管理系统', '欢迎各位新同学使用成绩管理系统，如有问题请联系管理员。', 'INFO', 1, 3, 1, NOW(), NOW());
 
+-- ----------------------------
+-- Table structure for terms
+-- ----------------------------
+DROP TABLE IF EXISTS `terms`;
+CREATE TABLE `terms` (
+  `id` bigint(20) NOT NULL AUTO_INCREMENT,
+  `name` varchar(50) NOT NULL COMMENT '学期名称',
+  `start_date` date DEFAULT NULL COMMENT '开始日期',
+  `end_date` date DEFAULT NULL COMMENT '结束日期',
+  `enabled` tinyint(1) NOT NULL DEFAULT 1 COMMENT '是否启用：0-禁用，1-启用',
+  `sort_order` int(11) NOT NULL DEFAULT 0 COMMENT '排序权重',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_term_name` (`name`),
+  KEY `idx_enabled` (`enabled`)
+) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4;
+
+-- ----------------------------
+-- Records of terms
+-- ----------------------------
+INSERT INTO `terms` VALUES (1, '2023-Fall', '2023-09-01', '2024-01-15', 1, 1, NOW(), NOW());
+INSERT INTO `terms` VALUES (2, '2024-Spring', '2024-02-26', '2024-07-10', 1, 2, NOW(), NOW());
+INSERT INTO `terms` VALUES (3, '2024-Fall', '2024-09-02', '2025-01-17', 1, 3, NOW(), NOW());
+
 SET FOREIGN_KEY_CHECKS = 1;

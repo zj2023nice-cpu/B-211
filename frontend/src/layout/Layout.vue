@@ -33,6 +33,10 @@
             <el-icon><Reading /></el-icon>
             <template #title>课程管理</template>
           </el-menu-item>
+          <el-menu-item index="/terms">
+            <el-icon><Calendar /></el-icon>
+            <template #title>学期管理</template>
+          </el-menu-item>
           <el-menu-item index="/audit-logs">
             <el-icon><Document /></el-icon>
             <template #title>审计日志</template>
@@ -117,7 +121,7 @@
 import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
-import { Expand, Fold, School, Odometer, Setting, User, Reading, Edit, DataLine, ArrowDown, Document, Warning, Bell, Trophy, DataAnalysis } from '@element-plus/icons-vue'
+import { Expand, Fold, School, Odometer, Setting, User, Reading, Edit, DataLine, ArrowDown, Document, Warning, Bell, Trophy, DataAnalysis, Calendar } from '@element-plus/icons-vue'
 
 const route = useRoute()
 const router = useRouter()

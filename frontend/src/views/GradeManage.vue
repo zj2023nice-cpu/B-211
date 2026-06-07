@@ -106,7 +106,14 @@
     <el-dialog v-model="dialogVisible" :title="dialogTitle">
       <el-form :model="form" label-width="80px">
         <el-form-item label="学期">
-           <el-input v-model="form.term" placeholder="例如: 2023-Fall" />
+          <el-select v-model="form.term" placeholder="请选择学期" style="width: 100%" filterable allow-create default-first-option>
+            <el-option
+              v-for="term in termOptions"
+              :key="term"
+              :label="term"
+              :value="term"
+            />
+          </el-select>
         </el-form-item>
         <el-form-item label="课程">
           <el-select v-model="form.courseId" placeholder="请选择课程">
@@ -227,6 +234,7 @@ const currentPage = ref(0)
 const pageSize = ref(10)
 const total = ref(0)
 const allGradesForOptions = ref([])
+const termOptionsFromAPI = ref([])
 
 const importDialogVisible = ref(false)
 const uploading = ref(false)
@@ -243,6 +251,9 @@ const currentPageForDisplay = computed({
 })
 
 const termOptions = computed(() => {
+    if (termOptionsFromAPI.value && termOptionsFromAPI.value.length > 0) {
+        return termOptionsFromAPI.value
+    }
     return [...new Set(allGradesForOptions.value.map(item => item.term))].sort()
 })
 
@@ -325,7 +336,7 @@ const form = reactive({
   courseId: null,
   score: 0,
   makeupScore: null,
-  term: '2023-Fall'
+  term: ''
 })
 
 const getCourseName = (id) => {
@@ -367,10 +378,13 @@ const fetchData = async () => {
         params.studentName = filterStudent.value
     }
     
-    const [coursesRes, usersRes] = await Promise.all([
+    const [coursesRes, usersRes, termsRes] = await Promise.all([
         request.get('/courses'),
-        request.get('/users')
+        request.get('/users'),
+        request.get('/terms/names').catch(() => [])
     ])
+    
+    termOptionsFromAPI.value = termsRes || []
     
     allCourses.value = coursesRes
     courses.value = coursesRes
@@ -405,13 +419,14 @@ const fetchData = async () => {
 
 const handleAdd = () => {
   dialogTitle.value = '录入成绩'
+  const defaultTerm = termOptions.value.length > 0 ? termOptions.value[0] : '2023-Fall'
   Object.assign(form, {
     id: null,
     studentId: null,
     courseId: null,
     score: 0,
     makeupScore: null,
-    term: '2023-Fall'
+    term: defaultTerm
   })
   dialogVisible.value = true
 }

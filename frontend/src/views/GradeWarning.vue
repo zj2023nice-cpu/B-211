@@ -76,6 +76,7 @@ const tableData = ref([])
 const courses = ref([])
 const allGrades = ref([])
 const students = ref([])
+const termOptionsFromAPI = ref([])
 
 const filterTerm = ref('')
 const filterCourse = ref('')
@@ -101,6 +102,9 @@ const isHeadTeacher = computed(() => {
 })
 
 const termOptions = computed(() => {
+  if (termOptionsFromAPI.value && termOptionsFromAPI.value.length > 0) {
+    return termOptionsFromAPI.value
+  }
   return [...new Set(allGrades.value.map(item => item.term))].sort()
 })
 
@@ -189,12 +193,14 @@ const fetchData = async () => {
       params.className = userStore.user.className
     }
 
-    const [coursesRes, usersRes, gradesRes] = await Promise.all([
+    const [coursesRes, usersRes, gradesRes, termsRes] = await Promise.all([
       request.get('/courses'),
       request.get('/users'),
-      request.get('/grade-warnings', { params })
+      request.get('/grade-warnings', { params }),
+      request.get('/terms/names').catch(() => [])
     ])
 
+    termOptionsFromAPI.value = termsRes || []
     courses.value = coursesRes
     students.value = usersRes.filter(u => u.role === 'STUDENT')
 

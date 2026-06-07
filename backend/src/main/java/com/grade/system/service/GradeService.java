@@ -44,6 +44,9 @@ public class GradeService {
     @Autowired
     private UserRepository userRepository;
 
+    @Autowired
+    private TermService termService;
+
     public List<Grade> getAllGrades() {
         return gradeRepository.findAll();
     }
@@ -446,7 +449,7 @@ public class GradeService {
     }
 
     public List<String> getAllTerms() {
-        return gradeRepository.findDistinctTerms();
+        return termService.getAllTermNames();
     }
 
     public List<String> getRankingClasses() {
