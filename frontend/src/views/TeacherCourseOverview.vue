@@ -51,18 +51,20 @@
 
             <el-table :data="teacher.courseProgressList" stripe border size="small" style="margin-top: 16px;">
               <el-table-column prop="courseName" label="课程名称" min-width="140" />
-              <el-table-column label="成绩录入进度" min-width="200">
+              <el-table-column label="成绩记录完成度" min-width="240">
                 <template #default="scope">
-                  <div class="progress-wrapper">
-                    <el-progress
-                      :percentage="scope.row.progressPercent"
-                      :stroke-width="10"
-                      :color="getProgressColor(scope.row.progressPercent)"
-                    />
-                    <span class="progress-text">
-                      {{ scope.row.enteredCount }}/{{ scope.row.totalStudents }}人
-                    </span>
-                  </div>
+                  <el-tooltip :content="getProgressTooltip(scope.row)" placement="top">
+                    <div class="progress-wrapper">
+                      <el-progress
+                        :percentage="scope.row.progressPercent"
+                        :stroke-width="10"
+                        :color="getProgressColor(scope.row.progressPercent)"
+                      />
+                      <span class="progress-text">
+                        已评分{{ scope.row.enteredCount }}/已建记录{{ scope.row.totalStudents }}
+                      </span>
+                    </div>
+                  </el-tooltip>
                 </template>
               </el-table-column>
               <el-table-column prop="averageScore" label="平均分" width="100" align="center">
@@ -79,9 +81,9 @@
                   </span>
                 </template>
               </el-table-column>
-              <el-table-column prop="lastGradeChangeTime" label="最近成绩变更" width="160" align="center">
+              <el-table-column prop="lastGradeChangeTime" label="最近成绩变更" width="180" align="center">
                 <template #default="scope">
-                  <el-tooltip :content="scope.row.lastGradeChangeTime" placement="top">
+                  <el-tooltip :content="getLastChangeTooltip(scope.row)" placement="top">
                     <span class="last-change-time">
                       <el-icon><Clock /></el-icon>
                       {{ formatTime(scope.row.lastGradeChangeTime) }}
@@ -143,8 +145,18 @@ const getTeacherTotalFail = (teacher) => {
   return courses.reduce((sum, c) => sum + (c.failCount || 0), 0)
 }
 
+const getProgressTooltip = (course) => {
+  const description = course.progressDescription || '基于已建成绩记录计算'
+  return `${description}；未评分记录 ${course.unscoredCount || 0} 条`
+}
+
+const getLastChangeTooltip = (course) => {
+  const description = course.lastGradeChangeDescription || '仅统计可归因的成绩新增/修改时间'
+  return `${course.lastGradeChangeTime || '暂无可归因记录'}\n${description}`
+}
+
 const formatTime = (timeStr) => {
-  if (!timeStr || timeStr === '暂无记录') return timeStr
+  if (!timeStr || timeStr === '暂无记录' || timeStr === '暂无可归因记录') return timeStr
   return timeStr
 }
 

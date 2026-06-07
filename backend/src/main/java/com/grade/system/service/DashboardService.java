@@ -1,5 +1,7 @@
 package com.grade.system.service;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.grade.system.dto.ClassProfileDTO;
 import com.grade.system.dto.DashboardStatsDTO;
 import com.grade.system.dto.TeacherCourseOverviewDTO;
@@ -18,6 +20,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -36,6 +39,9 @@ public class DashboardService {
 
     @Autowired
     private AuditLogRepository auditLogRepository;
+
+    @Autowired
+    private ObjectMapper objectMapper;
 
     public DashboardStatsDTO getDashboardStats(Long userId, String username, String role, String className) {
         DashboardStatsDTO stats = new DashboardStatsDTO();
@@ -323,31 +329,7 @@ public class DashboardService {
 
         Map<Long, List<Grade>> gradesByCourse = allGrades.stream()
                 .collect(Collectors.groupingBy(Grade::getCourseId));
-
-        Map<Long, List<AuditLog>> gradeLogsByCourse = new HashMap<>();
-        for (AuditLog log : allGradeLogs) {
-            if (log.getTargetId() != null && !log.getTargetId().isEmpty()) {
-                try {
-                    String targetIdStr = log.getTargetId();
-                    if (targetIdStr.contains(",")) {
-                        String[] ids = targetIdStr.split(",");
-                        for (String idStr : ids) {
-                            Long courseId = parseCourseIdFromLog(idStr.trim());
-                            if (courseId != null) {
-                                gradeLogsByCourse.computeIfAbsent(courseId, k -> new ArrayList<>()).add(log);
-                            }
-                        }
-                    } else {
-                        Long courseId = parseCourseIdFromLog(targetIdStr);
-                        if (courseId != null) {
-                            gradeLogsByCourse.computeIfAbsent(courseId, k -> new ArrayList<>()).add(log);
-                        }
-                    }
-                } catch (Exception e) {
-                    // ignore parsing errors
-                }
-            }
-        }
+        Map<Long, LocalDateTime> latestGradeChangeByCourse = buildLatestGradeChangeByCourse(allGradeLogs);
 
         List<TeacherCourseOverviewDTO> result = new ArrayList<>();
         for (Map.Entry<Long, List<Course>> entry : coursesByTeacher.entrySet()) {
@@ -365,24 +347,30 @@ public class DashboardService {
                 TeacherCourseOverviewDTO.CourseProgressDTO progress = new TeacherCourseOverviewDTO.CourseProgressDTO();
                 progress.setCourseId(course.getId());
                 progress.setCourseName(course.getName());
+                progress.setProgressDescription("基于已存在成绩记录的学生计算，不代表课程应录总人数");
+                progress.setLastGradeChangeDescription("仅统计可通过审计日志归因到本课程的新增/修改时间");
 
-                List<Grade> courseGrades = gradesByCourse.getOrDefault(course.getId(), new ArrayList<>());
-                
-                Set<Long> uniqueStudents = courseGrades.stream()
+                List<Grade> courseGrades = gradesByCourse.getOrDefault(course.getId(), Collections.emptyList());
+
+                int totalStudents = (int) courseGrades.stream()
                         .map(Grade::getStudentId)
-                        .collect(Collectors.toSet());
-                int totalStudents = uniqueStudents.size();
-                
+                        .filter(Objects::nonNull)
+                        .distinct()
+                        .count();
+
                 List<Grade> enteredGrades = courseGrades.stream()
                         .filter(g -> g.getScore() != null || g.getMakeupScore() != null)
                         .collect(Collectors.toList());
                 int enteredCount = (int) enteredGrades.stream()
                         .map(Grade::getStudentId)
+                        .filter(Objects::nonNull)
                         .distinct()
                         .count();
+                int unscoredCount = Math.max(totalStudents - enteredCount, 0);
 
                 progress.setTotalStudents(totalStudents);
                 progress.setEnteredCount(enteredCount);
+                progress.setUnscoredCount(unscoredCount);
                 if (totalStudents > 0) {
                     progress.setProgressPercent(Math.round((enteredCount * 100.0 / totalStudents) * 100.0) / 100.0);
                 } else {
@@ -404,13 +392,12 @@ public class DashboardService {
                     progress.setFailCount(0);
                 }
 
-                List<AuditLog> courseLogs = gradeLogsByCourse.getOrDefault(course.getId(), new ArrayList<>());
-                if (!courseLogs.isEmpty()) {
-                    AuditLog latestLog = courseLogs.get(0);
-                    progress.setLastGradeChangeTime(latestLog.getCreatedAt()
+                LocalDateTime latestChangeTime = latestGradeChangeByCourse.get(course.getId());
+                if (latestChangeTime != null) {
+                    progress.setLastGradeChangeTime(latestChangeTime
                             .format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")));
                 } else {
-                    progress.setLastGradeChangeTime("暂无记录");
+                    progress.setLastGradeChangeTime("暂无可归因记录");
                 }
 
                 courseProgressList.add(progress);
@@ -423,20 +410,85 @@ public class DashboardService {
         return result;
     }
 
-    private Long parseCourseIdFromLog(String targetId) {
-        if (targetId == null || targetId.isEmpty()) {
+    private Map<Long, LocalDateTime> buildLatestGradeChangeByCourse(List<AuditLog> gradeLogs) {
+        Map<Long, LocalDateTime> latestGradeChangeByCourse = new HashMap<>();
+        for (AuditLog log : gradeLogs) {
+            Long courseId = extractCourseIdFromRequestParams(log.getRequestParams());
+            if (courseId == null || log.getCreatedAt() == null) {
+                continue;
+            }
+            latestGradeChangeByCourse.merge(courseId, log.getCreatedAt(),
+                    (existing, current) -> current.isAfter(existing) ? current : existing);
+        }
+        return latestGradeChangeByCourse;
+    }
+
+    private Long extractCourseIdFromRequestParams(String requestParams) {
+        if (requestParams == null || requestParams.isEmpty()) {
             return null;
         }
+
         try {
-            if (targetId.startsWith("course_")) {
-                return Long.parseLong(targetId.replace("course_", ""));
+            JsonNode root = objectMapper.readTree(requestParams);
+            Long courseId = extractCourseId(root);
+            if (courseId != null) {
+                return courseId;
             }
-            if (targetId.matches("\\d+")) {
-                return Long.parseLong(targetId);
+
+            if (root.isObject()) {
+                Iterator<JsonNode> elements = root.elements();
+                while (elements.hasNext()) {
+                    courseId = extractCourseId(elements.next());
+                    if (courseId != null) {
+                        return courseId;
+                    }
+                }
             }
-        } catch (NumberFormatException e) {
+        } catch (Exception e) {
             return null;
         }
+
+        return null;
+    }
+
+    private Long extractCourseId(JsonNode node) {
+        if (node == null || node.isNull()) {
+            return null;
+        }
+
+        if (node.hasNonNull("courseId")) {
+            JsonNode courseIdNode = node.get("courseId");
+            if (courseIdNode.canConvertToLong()) {
+                return courseIdNode.longValue();
+            }
+            if (courseIdNode.isTextual()) {
+                try {
+                    return Long.parseLong(courseIdNode.asText());
+                } catch (NumberFormatException e) {
+                    return null;
+                }
+            }
+        }
+
+        if (node.isObject()) {
+            Iterator<JsonNode> elements = node.elements();
+            while (elements.hasNext()) {
+                Long courseId = extractCourseId(elements.next());
+                if (courseId != null) {
+                    return courseId;
+                }
+            }
+        }
+
+        if (node.isArray()) {
+            for (JsonNode item : node) {
+                Long courseId = extractCourseId(item);
+                if (courseId != null) {
+                    return courseId;
+                }
+            }
+        }
+
         return null;
     }
 }

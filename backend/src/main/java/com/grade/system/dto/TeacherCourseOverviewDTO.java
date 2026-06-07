@@ -16,9 +16,12 @@ public class TeacherCourseOverviewDTO {
         private String courseName;
         private Integer totalStudents;
         private Integer enteredCount;
+        private Integer unscoredCount;
         private Double progressPercent;
+        private String progressDescription;
         private Double averageScore;
         private Integer failCount;
         private String lastGradeChangeTime;
+        private String lastGradeChangeDescription;
     }
 }

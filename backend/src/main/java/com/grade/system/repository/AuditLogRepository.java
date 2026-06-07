@@ -75,6 +75,6 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
             @Param("endTime") LocalDateTime endTime,
             Pageable pageable);
 
-    @Query("SELECT a FROM AuditLog a WHERE a.module = '成绩管理' AND a.status = true ORDER BY a.createdAt DESC")
+    @Query("SELECT a FROM AuditLog a WHERE a.module = '成绩管理' AND a.status = true AND a.action IN ('新增', '修改') ORDER BY a.createdAt DESC")
     List<AuditLog> findAllGradeLogs();
 }
