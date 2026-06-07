@@ -1,5 +1,6 @@
 package com.grade.system.service;
 
+import com.grade.system.dto.ClassProfileDTO;
 import com.grade.system.dto.DashboardStatsDTO;
 import com.grade.system.entity.AuditLog;
 import com.grade.system.entity.Course;
@@ -199,5 +200,105 @@ public class DashboardService {
 
         double avg = scores.stream().mapToDouble(Double::doubleValue).average().orElse(0.0);
         return Math.round(avg * 100.0) / 100.0;
+    }
+
+    public List<String> getAllClassNames() {
+        return userRepository.findDistinctClassNames();
+    }
+
+    public ClassProfileDTO getClassProfile(String className, String term) {
+        ClassProfileDTO profile = new ClassProfileDTO();
+        profile.setClassName(className);
+
+        List<User> classStudents = userRepository.findByClassName(className).stream()
+                .filter(u -> "STUDENT".equals(u.getRole()))
+                .collect(Collectors.toList());
+        profile.setStudentCount(classStudents.size());
+
+        if (classStudents.isEmpty()) {
+            profile.setCourseCount(0);
+            profile.setAverageScore(0.0);
+            profile.setPassRate(0.0);
+            profile.setExcellentRate(0.0);
+            profile.setCourseAverages(new ArrayList<>());
+            return profile;
+        }
+
+        List<Long> studentIds = classStudents.stream()
+                .map(User::getId)
+                .collect(Collectors.toList());
+
+        List<Grade> classGrades;
+        if (term != null && !term.isEmpty()) {
+            classGrades = gradeRepository.findByTermAndStudentIdIn(term, studentIds);
+        } else {
+            classGrades = gradeRepository.findByStudentIdIn(studentIds);
+        }
+
+        List<Double> allScores = classGrades.stream()
+                .map(g -> g.getMakeupScore() != null ? g.getMakeupScore() : g.getScore())
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+
+        if (!allScores.isEmpty()) {
+            double avg = allScores.stream().mapToDouble(Double::doubleValue).average().orElse(0.0);
+            profile.setAverageScore(Math.round(avg * 100.0) / 100.0);
+
+            long passCount = allScores.stream().filter(s -> s >= 60).count();
+            profile.setPassRate(Math.round((passCount * 100.0 / allScores.size()) * 100.0) / 100.0);
+
+            long excellentCount = allScores.stream().filter(s -> s >= 90).count();
+            profile.setExcellentRate(Math.round((excellentCount * 100.0 / allScores.size()) * 100.0) / 100.0);
+        } else {
+            profile.setAverageScore(0.0);
+            profile.setPassRate(0.0);
+            profile.setExcellentRate(0.0);
+        }
+
+        List<Course> allCourses = courseRepository.findAll();
+        Map<Long, String> courseNameMap = allCourses.stream()
+                .collect(Collectors.toMap(Course::getId, Course::getName));
+
+        Map<Long, List<Grade>> gradesByCourse = classGrades.stream()
+                .collect(Collectors.groupingBy(Grade::getCourseId));
+
+        List<ClassProfileDTO.CourseAverageDTO> courseAverages = new ArrayList<>();
+        for (Map.Entry<Long, List<Grade>> entry : gradesByCourse.entrySet()) {
+            Long courseId = entry.getKey();
+            List<Grade> courseGrades = entry.getValue();
+
+            ClassProfileDTO.CourseAverageDTO courseAvg = new ClassProfileDTO.CourseAverageDTO();
+            courseAvg.setCourseId(courseId);
+            courseAvg.setCourseName(courseNameMap.getOrDefault(courseId, "未知课程"));
+
+            List<Double> scores = courseGrades.stream()
+                    .map(g -> g.getMakeupScore() != null ? g.getMakeupScore() : g.getScore())
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toList());
+
+            if (!scores.isEmpty()) {
+                double avg = scores.stream().mapToDouble(Double::doubleValue).average().orElse(0.0);
+                courseAvg.setAverageScore(Math.round(avg * 100.0) / 100.0);
+                courseAvg.setMaxScore(Collections.max(scores));
+                courseAvg.setMinScore(Collections.min(scores));
+                courseAvg.setStudentCount(scores.size());
+                courseAvg.setPassCount((int) scores.stream().filter(s -> s >= 60).count());
+                courseAvg.setExcellentCount((int) scores.stream().filter(s -> s >= 90).count());
+            } else {
+                courseAvg.setAverageScore(0.0);
+                courseAvg.setMaxScore(0.0);
+                courseAvg.setMinScore(0.0);
+                courseAvg.setStudentCount(0);
+                courseAvg.setPassCount(0);
+                courseAvg.setExcellentCount(0);
+            }
+
+            courseAverages.add(courseAvg);
+        }
+
+        profile.setCourseAverages(courseAverages);
+        profile.setCourseCount(courseAverages.size());
+
+        return profile;
     }
 }

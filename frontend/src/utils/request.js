@@ -22,6 +22,9 @@ service.interceptors.request.use(
         if (user.role) {
           config.headers['X-User-Role'] = user.role
         }
+        if (user.className) {
+          config.headers['X-User-Class'] = user.className
+        }
       } catch (e) {
       }
     }
