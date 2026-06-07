@@ -85,7 +85,27 @@ public class AuditLogController {
         if (!"ADMIN".equals(UserContext.getUserRole())) {
             return ApiResponse.error("无权限查看日志详情");
         }
-        return ApiResponse.success("审计日志查询功能仅支持列表查询");
+        AuditLog auditLog = auditLogService.getAuditLogById(id);
+        if (auditLog == null) {
+            return ApiResponse.error("日志不存在");
+        }
+        return ApiResponse.success(auditLog);
+    }
+
+    @GetMapping("/my/{id}")
+    public ApiResponse<AuditLog> getMyAuditLog(@PathVariable Long id) {
+        if (!UserContext.isLoggedIn()) {
+            return ApiResponse.error("用户未登录");
+        }
+        Long userId = UserContext.getUserId();
+        if (userId == null) {
+            return ApiResponse.error("无效的用户身份");
+        }
+        AuditLog auditLog = auditLogService.getAuditLogByIdAndUserId(id, userId);
+        if (auditLog == null) {
+            return ApiResponse.error("日志不存在或无权限查看");
+        }
+        return ApiResponse.success(auditLog);
     }
 
     @GetMapping("/export")

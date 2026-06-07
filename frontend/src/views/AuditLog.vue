@@ -109,7 +109,7 @@
       />
     </div>
 
-    <el-dialog v-model="detailVisible" title="日志详情" width="60%">
+    <el-dialog v-model="detailVisible" title="日志详情" width="60%" v-loading="detailLoading">
       <el-descriptions :column="1" border v-if="currentDetail">
         <el-descriptions-item label="日志ID">{{ currentDetail.id }}</el-descriptions-item>
         <el-descriptions-item label="操作用户">{{ currentDetail.username || '-' }}</el-descriptions-item>
@@ -394,9 +394,20 @@ const handleExport = async () => {
   }
 }
 
-const handleViewDetail = (row) => {
-  currentDetail.value = row
-  detailVisible.value = true
+const detailLoading = ref(false)
+
+const handleViewDetail = async (row) => {
+  detailLoading.value = true
+  try {
+    const res = await request.get(`/audit-logs/${row.id}`)
+    currentDetail.value = res
+    detailVisible.value = true
+  } catch (error) {
+    console.error('获取详情失败:', error)
+    ElMessage.error('获取详情失败，请稍后重试')
+  } finally {
+    detailLoading.value = false
+  }
 }
 
 onMounted(() => {

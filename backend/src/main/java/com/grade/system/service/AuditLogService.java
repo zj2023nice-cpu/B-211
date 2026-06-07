@@ -65,6 +65,13 @@ public class AuditLogService {
         Page<AuditLog> auditLogPage = auditLogRepository.findByConditions(
                 username, module, action, status, startTime, endTime, pageable);
         
+        for (AuditLog log : auditLogPage.getContent()) {
+            log.setRequestParams(null);
+            log.setResponseResult(null);
+            log.setErrorMessage(null);
+            log.setUserAgent(null);
+        }
+        
         PageResponse<AuditLog> response = new PageResponse<>();
         response.setContent(auditLogPage.getContent());
         response.setPageNumber(auditLogPage.getNumber());
@@ -100,6 +107,13 @@ public class AuditLogService {
         
         Page<AuditLog> auditLogPage = auditLogRepository.findByUserIdAndConditions(
                 userId, module, action, status, startTime, endTime, pageable);
+        
+        for (AuditLog log : auditLogPage.getContent()) {
+            log.setRequestParams(null);
+            log.setResponseResult(null);
+            log.setErrorMessage(null);
+            log.setUserAgent(null);
+        }
         
         PageResponse<AuditLog> response = new PageResponse<>();
         response.setContent(auditLogPage.getContent());
@@ -181,6 +195,14 @@ public class AuditLogService {
             return "\"" + value.replace("\"", "\"\"") + "\"";
         }
         return value;
+    }
+
+    public AuditLog getAuditLogById(Long id) {
+        return auditLogRepository.findById(id).orElse(null);
+    }
+
+    public AuditLog getAuditLogByIdAndUserId(Long id, Long userId) {
+        return auditLogRepository.findByIdAndUserId(id, userId).orElse(null);
     }
 
     public void saveAuditLog(AuditLog auditLog) {

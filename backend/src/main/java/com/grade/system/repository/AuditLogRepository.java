@@ -77,4 +77,6 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
 
     @Query("SELECT a FROM AuditLog a WHERE a.module = '成绩管理' AND a.status = true AND a.action IN ('新增', '修改') ORDER BY a.createdAt DESC")
     List<AuditLog> findAllGradeLogs();
+
+    java.util.Optional<AuditLog> findByIdAndUserId(Long id, Long userId);
 }
