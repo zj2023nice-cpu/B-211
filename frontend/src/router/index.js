@@ -83,6 +83,12 @@ const router = createRouter({
           meta: { title: '班级画像', roles: ['ADMIN', 'HEAD_TEACHER'] }
         },
         {
+          path: 'teacher-course-overview',
+          name: 'TeacherCourseOverview',
+          component: () => import('../views/TeacherCourseOverview.vue'),
+          meta: { title: '教师授课总览', roles: ['ADMIN'] }
+        },
+        {
           path: 'profile',
           name: 'Profile',
           component: () => import('../views/Profile.vue'),

@@ -28,6 +28,16 @@
           <template #header>
             <div class="card-header">
               <span class="header-title"><el-icon><Bell /></el-icon> 系统公告</span>
+              <el-button 
+                v-if="userStore.role === 'ADMIN'" 
+                type="primary" 
+                plain 
+                size="small" 
+                @click="goToTeacherOverview"
+              >
+                <el-icon><Guide /></el-icon>
+                教师授课总览
+              </el-button>
             </div>
           </template>
           <div class="announcement-list" v-loading="announcementLoading">
@@ -90,11 +100,14 @@
 
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
 import * as echarts from 'echarts'
-import { Bell, TrendCharts } from '@element-plus/icons-vue'
+import { Bell, TrendCharts, Guide } from '@element-plus/icons-vue'
 import request from '@/utils/request'
 import { ElDialog } from 'element-plus'
+
+const router = useRouter()
 
 const userStore = useUserStore()
 const chartRef = ref(null)
@@ -164,6 +177,10 @@ const fetchAnnouncements = async () => {
   } finally {
     announcementLoading.value = false
   }
+}
+
+const goToTeacherOverview = () => {
+  router.push('/teacher-course-overview')
 }
 
 const handleViewAnnouncement = (item) => {

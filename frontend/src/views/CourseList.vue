@@ -4,7 +4,13 @@
       <template #header>
         <div class="card-header">
           <span>课程管理</span>
-          <el-button type="primary" @click="handleAdd">新增课程</el-button>
+          <div class="header-actions">
+            <el-button type="success" plain @click="goToTeacherOverview">
+              <el-icon><Guide /></el-icon>
+              教师授课总览
+            </el-button>
+            <el-button type="primary" @click="handleAdd">新增课程</el-button>
+          </div>
         </div>
       </template>
       
@@ -65,8 +71,12 @@
 
 <script setup>
 import { ref, onMounted, reactive, computed } from 'vue'
+import { useRouter } from 'vue-router'
 import request from '@/utils/request'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { Guide } from '@element-plus/icons-vue'
+
+const router = useRouter()
 
 const loading = ref(false)
 const tableData = ref([])
@@ -160,6 +170,10 @@ const handleDelete = (row) => {
   })
 }
 
+const goToTeacherOverview = () => {
+  router.push('/teacher-course-overview')
+}
+
 const handleSubmit = async () => {
   try {
     if (form.id) {
@@ -192,6 +206,12 @@ onMounted(() => {
 .card-header {
   display: flex;
   justify-content: space-between;
+  align-items: center;
+}
+
+.header-actions {
+  display: flex;
+  gap: 10px;
   align-items: center;
 }
 .header-left {

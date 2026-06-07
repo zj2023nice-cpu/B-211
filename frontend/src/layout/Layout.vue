@@ -67,6 +67,11 @@
           <template #title>班级画像</template>
         </el-menu-item>
 
+        <el-menu-item index="/teacher-course-overview" v-if="userStore.role === 'ADMIN'">
+          <el-icon><Guide /></el-icon>
+          <template #title>教师授课总览</template>
+        </el-menu-item>
+
         <el-menu-item index="/grade-warnings" v-if="['ADMIN', 'TEACHER', 'HEAD_TEACHER'].includes(userStore.role)">
           <el-icon><Warning /></el-icon>
           <template #title>成绩预警</template>
@@ -121,7 +126,7 @@
 import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
-import { Expand, Fold, School, Odometer, Setting, User, Reading, Edit, DataLine, ArrowDown, Document, Warning, Bell, Trophy, DataAnalysis, Calendar } from '@element-plus/icons-vue'
+import { Expand, Fold, School, Odometer, Setting, User, Reading, Edit, DataLine, ArrowDown, Document, Warning, Bell, Trophy, DataAnalysis, Calendar, Guide } from '@element-plus/icons-vue'
 
 const route = useRoute()
 const router = useRouter()

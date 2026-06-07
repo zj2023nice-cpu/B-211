@@ -2,6 +2,7 @@ package com.grade.system.service;
 
 import com.grade.system.dto.ClassProfileDTO;
 import com.grade.system.dto.DashboardStatsDTO;
+import com.grade.system.dto.TeacherCourseOverviewDTO;
 import com.grade.system.entity.AuditLog;
 import com.grade.system.entity.Course;
 import com.grade.system.entity.Grade;
@@ -300,5 +301,142 @@ public class DashboardService {
         profile.setCourseCount(courseAverages.size());
 
         return profile;
+    }
+
+    public List<TeacherCourseOverviewDTO> getTeacherCourseOverviews() {
+        List<User> teachers = userRepository.findByRole("TEACHER");
+        List<User> headTeachers = userRepository.findByRole("HEAD_TEACHER");
+        List<User> allTeachers = new ArrayList<>();
+        allTeachers.addAll(teachers);
+        allTeachers.addAll(headTeachers);
+
+        List<Course> allCourses = courseRepository.findAll();
+        List<Grade> allGrades = gradeRepository.findAll();
+        List<AuditLog> allGradeLogs = auditLogRepository.findAllGradeLogs();
+
+        Map<Long, User> userMap = allTeachers.stream()
+                .collect(Collectors.toMap(User::getId, u -> u));
+
+        Map<Long, List<Course>> coursesByTeacher = allCourses.stream()
+                .filter(c -> c.getTeacherId() != null && userMap.containsKey(c.getTeacherId()))
+                .collect(Collectors.groupingBy(Course::getTeacherId));
+
+        Map<Long, List<Grade>> gradesByCourse = allGrades.stream()
+                .collect(Collectors.groupingBy(Grade::getCourseId));
+
+        Map<Long, List<AuditLog>> gradeLogsByCourse = new HashMap<>();
+        for (AuditLog log : allGradeLogs) {
+            if (log.getTargetId() != null && !log.getTargetId().isEmpty()) {
+                try {
+                    String targetIdStr = log.getTargetId();
+                    if (targetIdStr.contains(",")) {
+                        String[] ids = targetIdStr.split(",");
+                        for (String idStr : ids) {
+                            Long courseId = parseCourseIdFromLog(idStr.trim());
+                            if (courseId != null) {
+                                gradeLogsByCourse.computeIfAbsent(courseId, k -> new ArrayList<>()).add(log);
+                            }
+                        }
+                    } else {
+                        Long courseId = parseCourseIdFromLog(targetIdStr);
+                        if (courseId != null) {
+                            gradeLogsByCourse.computeIfAbsent(courseId, k -> new ArrayList<>()).add(log);
+                        }
+                    }
+                } catch (Exception e) {
+                    // ignore parsing errors
+                }
+            }
+        }
+
+        List<TeacherCourseOverviewDTO> result = new ArrayList<>();
+        for (Map.Entry<Long, List<Course>> entry : coursesByTeacher.entrySet()) {
+            Long teacherId = entry.getKey();
+            List<Course> teacherCourses = entry.getValue();
+            User teacher = userMap.get(teacherId);
+
+            TeacherCourseOverviewDTO overview = new TeacherCourseOverviewDTO();
+            overview.setTeacherId(teacherId);
+            overview.setTeacherName(teacher != null ? teacher.getName() : "未知教师");
+            overview.setCourseCount(teacherCourses.size());
+
+            List<TeacherCourseOverviewDTO.CourseProgressDTO> courseProgressList = new ArrayList<>();
+            for (Course course : teacherCourses) {
+                TeacherCourseOverviewDTO.CourseProgressDTO progress = new TeacherCourseOverviewDTO.CourseProgressDTO();
+                progress.setCourseId(course.getId());
+                progress.setCourseName(course.getName());
+
+                List<Grade> courseGrades = gradesByCourse.getOrDefault(course.getId(), new ArrayList<>());
+                
+                Set<Long> uniqueStudents = courseGrades.stream()
+                        .map(Grade::getStudentId)
+                        .collect(Collectors.toSet());
+                int totalStudents = uniqueStudents.size();
+                
+                List<Grade> enteredGrades = courseGrades.stream()
+                        .filter(g -> g.getScore() != null || g.getMakeupScore() != null)
+                        .collect(Collectors.toList());
+                int enteredCount = (int) enteredGrades.stream()
+                        .map(Grade::getStudentId)
+                        .distinct()
+                        .count();
+
+                progress.setTotalStudents(totalStudents);
+                progress.setEnteredCount(enteredCount);
+                if (totalStudents > 0) {
+                    progress.setProgressPercent(Math.round((enteredCount * 100.0 / totalStudents) * 100.0) / 100.0);
+                } else {
+                    progress.setProgressPercent(0.0);
+                }
+
+                List<Double> scores = enteredGrades.stream()
+                        .map(g -> g.getMakeupScore() != null ? g.getMakeupScore() : g.getScore())
+                        .filter(Objects::nonNull)
+                        .collect(Collectors.toList());
+
+                if (!scores.isEmpty()) {
+                    double avg = scores.stream().mapToDouble(Double::doubleValue).average().orElse(0.0);
+                    progress.setAverageScore(Math.round(avg * 100.0) / 100.0);
+                    long failCount = scores.stream().filter(s -> s < 60).count();
+                    progress.setFailCount((int) failCount);
+                } else {
+                    progress.setAverageScore(0.0);
+                    progress.setFailCount(0);
+                }
+
+                List<AuditLog> courseLogs = gradeLogsByCourse.getOrDefault(course.getId(), new ArrayList<>());
+                if (!courseLogs.isEmpty()) {
+                    AuditLog latestLog = courseLogs.get(0);
+                    progress.setLastGradeChangeTime(latestLog.getCreatedAt()
+                            .format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")));
+                } else {
+                    progress.setLastGradeChangeTime("暂无记录");
+                }
+
+                courseProgressList.add(progress);
+            }
+            overview.setCourseProgressList(courseProgressList);
+            result.add(overview);
+        }
+
+        result.sort(Comparator.comparing(TeacherCourseOverviewDTO::getTeacherName));
+        return result;
+    }
+
+    private Long parseCourseIdFromLog(String targetId) {
+        if (targetId == null || targetId.isEmpty()) {
+            return null;
+        }
+        try {
+            if (targetId.startsWith("course_")) {
+                return Long.parseLong(targetId.replace("course_", ""));
+            }
+            if (targetId.matches("\\d+")) {
+                return Long.parseLong(targetId);
+            }
+        } catch (NumberFormatException e) {
+            return null;
+        }
+        return null;
     }
 }

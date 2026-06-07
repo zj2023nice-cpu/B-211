@@ -3,6 +3,7 @@ package com.grade.system.controller;
 import com.grade.system.dto.ApiResponse;
 import com.grade.system.dto.ClassProfileDTO;
 import com.grade.system.dto.DashboardStatsDTO;
+import com.grade.system.dto.TeacherCourseOverviewDTO;
 import com.grade.system.service.DashboardService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
@@ -57,5 +58,17 @@ public class DashboardController {
 
         ClassProfileDTO profile = dashboardService.getClassProfile(targetClass, term);
         return ApiResponse.success("获取班级画像成功", profile);
+    }
+
+    @GetMapping("/teacher-course-overviews")
+    public ApiResponse<List<TeacherCourseOverviewDTO>> getTeacherCourseOverviews(
+            @RequestHeader(value = "X-User-Role", required = false) String role) {
+
+        if (!"ADMIN".equals(role)) {
+            return ApiResponse.error("无权限访问");
+        }
+
+        List<TeacherCourseOverviewDTO> overviews = dashboardService.getTeacherCourseOverviews();
+        return ApiResponse.success("获取教师授课总览成功", overviews);
     }
 }
